@@ -46,7 +46,7 @@ for epoch in tqdm(range(epochs)):
     valid_loss = 0
     count = 0
     model.train()
-    for i, batch in enumerate(train_loader):
+    for i, batch in tqdm(enumerate(train_loader)):
         x = batch[0].to(device)
         y = batch[1].to(device)
         y_pred = model(x)
@@ -60,7 +60,7 @@ for epoch in tqdm(range(epochs)):
     model.eval()
     
     with torch.no_grad():
-        for i, batch in enumerate(valid_loader):
+        for i, batch in tqdm(enumerate(valid_loader)):
             x = batch[0].to(device)
             y = batch[1].to(device)
             y_pred = model(x)
