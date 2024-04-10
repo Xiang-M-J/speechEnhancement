@@ -106,4 +106,4 @@ with torch.no_grad():
         loss = loss_fn(y_pred, y)
         test_loss += loss.data.item()
 
-np.save("test_loss.npy", test_loss)
+np.save("test_loss.npy", test_loss / len(test_loader))

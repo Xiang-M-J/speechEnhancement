@@ -4,7 +4,7 @@ import torch.utils
 from utils import VoiceBankDemand, collate_fn, VoiceBankDemandBatch
 from torch.utils.data import DataLoader, random_split
 from config import batch_size, lr, epochs
-from CRN import crn_net
+from DPCRN import dpcrn
 from tqdm import tqdm
 import numpy as np
 base_path = r"D:\work\speechEnhancement\datasets\voicebank_demand"
@@ -26,7 +26,7 @@ train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True, co
 valid_loader = DataLoader(valid_dataset, batch_size=batch_size, shuffle=True, collate_fn=collate_fn)
 test_loader = DataLoader(test_dataset, batch_size=batch_size, shuffle=True, collate_fn=collate_fn)
 
-model = crn_net()
+model = dpcrn()
 model = model.to(device=device)
 loss_fn = torch.nn.MSELoss()
 loss_fn = loss_fn.to(device=device)
@@ -68,6 +68,7 @@ for epoch in tqdm(range(epochs)):
     valid_losses.append(valid_loss / valid_step)
     if valid_loss >= last_valid_loss:
         dec_counter += 1
+        print(dec_counter)
     else:
         dec_counter = 0
     last_valid_loss = valid_loss
@@ -81,7 +82,7 @@ for epoch in tqdm(range(epochs)):
             param_groups['lr'] = lr
     elif dec_counter == 5:                       # 损失连续上升 5 次，停止训练
         print(f"epoch {epoch}: early stop")
-        torch.save(model, f"BEST_MODEL/{epoch}.pt")
+        torch.save(model, f"BEST_MODEL/{epoch+1}.pt")
         break
     np.save("loss.npy", {"train_loss": train_losses, "valid_loss": valid_losses})
 torch.save(model, "CP_dir/final.pt")

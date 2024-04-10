@@ -15,8 +15,8 @@ test_clean_path = os.path.join(base_path, "clean_testset_wav")
 test_noisy_path = os.path.join(base_path, "noisy_testset_wav")
 test_scp_path = os.path.join(base_path, "test.scp")
 
-# device = "cuda" if torch.cuda.is_available() else "cpu"
-device = "cpu"
+device = "cuda" if torch.cuda.is_available() else "cpu"
+# device = "cpu"
 
 temp_dataset = VoiceBankDemandBatch(train_scp_path, train_noisy_path, train_clean_path)
 test_loader = VoiceBankDemandBatch(test_scp_path, test_noisy_path, test_clean_path)

@@ -13,7 +13,7 @@ file_path = '/media/luoxiaoxue/datasets/wsj0_si84_300h'
 #file_path = '/media/luoxiaoxue/datasets/VB_DEMAND_48K'
 
 loss_dir = './LOSS/wsj0_si84_300h_dpcrn_noncprs_loss.mat'
-batch_size = 8
+batch_size = 4
 epochs = 50
 lr = 1e-3
 model_best_path = './BEST_MODEL/wsj0_si84_300h_dpcrn_noncprs_model.pth'
