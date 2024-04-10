@@ -29,8 +29,8 @@ class VoiceBankDemand(Dataset):
         noisy_wav = os.path.join(self.noisy_path, f"{self.files[index]}.wav")
         clean_wav = os.path.join(self.clean_path, f"{self.files[index]}.wav")
         
-        feat_noisy, _ = getstftSpec_torch(noisy_wav)
-        feat_clean, _ = getstftSpec_torch(clean_wav)
+        feat_noisy = getstftSpec_torch(noisy_wav)
+        feat_clean = getstftSpec_torch(clean_wav)
         
         # return torch.tensor(feat_noisy, dtype=torch.float32), torch.tensor(feat_clean, dtype=torch.float32)
         return feat_noisy, feat_clean
@@ -128,29 +128,13 @@ def getstftSpec_torch(wav_path):
     feat_wav = feat_wav.squeeze(0)
     c = torch.sqrt(feat_wav.shape[0] / torch.sum((feat_wav ** 2.0)))
     feat_wav = feat_wav * c
-    feat_x = torch.stft(feat_wav, n_fft=fft_num, hop_length=win_shift, win_length=win_size, window=torch.hann_window(win_size), return_complex=True)
-    feat_x, phase_x = torch.abs(feat_x), torch.angle(feat_x)    
-    feat_x = torch.sqrt(feat_x)        # 压缩幅度
+    feat_x = torch.stft(feat_wav.unsqueeze(dim=0), n_fft=fft_num, hop_length=win_shift, win_length=win_size, window=torch.hann_window(win_size), return_complex=True).permute(0,3,1,2)
+    feat_x_mag = torch.norm(feat_x, dim=1)**0.5
+    feat_x_phase = torch.atan2(feat_x[:, 1, :, :], feat_x[:, 0, :, :])
+    feat_x = torch.stack((feat_x_mag * torch.cos(feat_x_phase), feat_x_mag * torch.sin(feat_x_phase)), dim=1)
+    feat_mag = torch.norm(feat_x, dim=1, keepdim=True)
 
-    return feat_x, phase_x
-
-def wav2spec(feat_wav):
-    c = torch.sqrt(feat_wav.shape[0] / torch.sum((feat_wav ** 2.0)))
-    feat_wav = feat_wav * c
-    feat_x = torch.stft(feat_wav, n_fft=fft_num, hop_length=win_shift, win_length=win_size, window=torch.hann_window(win_size), return_complex=True).T
-    feat_x, phase_x = torch.abs(feat_x), torch.angle(feat_x)    
-    feat_x = torch.sqrt(feat_x)        # 压缩幅度
-
-    return feat_x, phase_x, c, len(feat_wav)
-
-def spec2wav(feat, phase, c, l):
-    feat = torch.pow(feat, 2)
-    feat_de = torch.multiply(feat, torch.exp(1j * phase))
-    est_wav = torch.istft((feat_de).T, n_fft=fft_num, hop_length=win_shift,
-                                     win_length=win_size,  window=torch.hann_window(win_size), length=l)
-    est_wav = est_wav / c
-    return est_wav
-
+    return feat_mag
 
 
 def preprocess(wav_path):

@@ -1,9 +1,9 @@
 import os
 
 # front-end parameter settings
-win_size = 320
-fft_num = 320
-win_shift = 160
+win_size = 512
+fft_num = 512
+win_shift = 256
 chunk_length = int(8.0*16000)
 #WSJ
 #json_dir = '/media/luoxiaoxue/datasets/wsj0_si84_300h/Json'
@@ -12,7 +12,7 @@ chunk_length = int(8.0*16000)
 json_dir = '/media/luoxiaoxue/datasets/VB_DEMAND_48K/json'
 file_path = '/media/luoxiaoxue/datasets/VB_DEMAND_48K'
 loss_dir = './LOSS/vb_crn_noncprs_loss.mat'
-batch_size = 16
+batch_size = 2
 epochs = 60
 lr = 1e-3
 model_best_path = './BEST_MODEL/vb_crn_noncprs_model.pth'

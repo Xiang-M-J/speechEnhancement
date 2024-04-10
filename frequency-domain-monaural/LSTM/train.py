@@ -6,6 +6,7 @@ from torch.utils.data import DataLoader, random_split
 from config import batch_size, lr, epochs
 from LSTM import lstm_net
 from tqdm import tqdm
+import numpy as np
 base_path = r"D:\work\speechEnhancement\datasets\voicebank_demand"
 train_clean_path = os.path.join(base_path, "clean_trainset_28spk_wav")
 train_noisy_path = os.path.join(base_path, "noisy_trainset_28spk_wav")
@@ -35,6 +36,10 @@ train_step = len(train_loader)
 valid_step = len(valid_loader)
 last_valid_loss = 0
 dec_counter = 0
+train_losses = []
+valid_losses = []
+
+# train phase
 
 for epoch in tqdm(range(epochs)):
     train_loss = 0
@@ -51,6 +56,7 @@ for epoch in tqdm(range(epochs)):
         optim.step()
         train_loss += loss.data.item()
     print("epoch {}: train loss: {:.3f}".format(epoch, train_loss / train_step))
+    train_losses.append(train_loss / train_step)
 
     model.eval()
     
@@ -60,13 +66,17 @@ for epoch in tqdm(range(epochs)):
             y = batch[1].to(device)
             y_pred = model(x)
             loss = loss_fn(y_pred, y)
-            valid_loss += loss
+            valid_loss += loss.data.item()
     print("epoch {}: valid loss: {:.3f}".format(epoch, valid_loss / valid_step))
+    valid_losses.append(valid_loss / valid_step)
     if valid_loss > last_valid_loss:
         dec_counter += 1
     else:
         dec_counter = 0
     last_valid_loss = valid_loss
+
+    if (epoch+1) % 5 == 0:
+        torch.save(model, f"CP_dir/{epoch}.pt")
 
     if dec_counter == 3:    # 损失连续上升 3 次，降低学习率
         lr = lr / 2
@@ -79,3 +89,21 @@ for epoch in tqdm(range(epochs)):
         torch.save(model, f"BEST_MODEL/{epoch}.pt")
         break
 
+
+torch.save(model, "CP_dir/final.pt")
+np.save("loss.npy", {"train_loss": train_losses, "valid_loss": valid_losses})
+
+# test phase
+
+test_loss = 0
+model.eval()
+
+with torch.no_grad():
+    for i, batch in enumerate(test_loader):
+        x = batch[0].to(device)
+        y = batch[1].to(device)
+        y_pred = model(x)
+        loss = loss_fn(y_pred, y)
+        test_loss += loss.data.item()
+
+np.save("test_loss.npy", test_loss)

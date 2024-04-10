@@ -4,7 +4,7 @@ import torch.utils
 from utils import VoiceBankDemand, collate_fn, VoiceBankDemandBatch
 from torch.utils.data import DataLoader, random_split
 from config import batch_size, lr, epochs
-from CRN import crn_net
+from model import Model
 from tqdm import tqdm
 import numpy as np
 base_path = r"D:\work\speechEnhancement\datasets\voicebank_demand"
@@ -15,7 +15,8 @@ test_clean_path = os.path.join(base_path, "clean_testset_wav")
 test_noisy_path = os.path.join(base_path, "noisy_testset_wav")
 test_scp_path = os.path.join(base_path, "test.scp")
 
-device = "cuda" if torch.cuda.is_available() else "cpu"
+# device = "cuda" if torch.cuda.is_available() else "cpu"
+device = "cpu"
 
 
 train_dataset = VoiceBankDemand(train_scp_path, train_noisy_path, train_clean_path)
@@ -26,7 +27,20 @@ train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True, co
 valid_loader = DataLoader(valid_dataset, batch_size=batch_size, shuffle=True, collate_fn=collate_fn)
 test_loader = DataLoader(test_dataset, batch_size=batch_size, shuffle=True, collate_fn=collate_fn)
 
-model = crn_net()
+model = Model(
+    sb_num_neighbors=15,
+        fb_num_neighbors=0,
+        num_freqs=257,
+        look_ahead=2,
+        sequence_model="LSTM",
+        fb_output_activate_function="ReLU",
+        sb_output_activate_function=None,
+        fb_model_hidden_size=512,
+        sb_model_hidden_size=384,
+        weight_init=True,
+        norm_type="offline_laplace_norm",
+        num_groups_in_drop_band=2,
+)
 model = model.to(device=device)
 loss_fn = torch.nn.MSELoss()
 loss_fn = loss_fn.to(device=device)

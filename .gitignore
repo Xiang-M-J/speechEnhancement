@@ -1,1 +1,9 @@
 datasets
+*.pt
+*.pth
+
+.idea
+*/.idea
+*/*/.idea
+*/*/*/.idea
+*.pyc
