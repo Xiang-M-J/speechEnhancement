@@ -372,6 +372,40 @@ DNSMOS：稳健语音质量指标，由三个次指标组成，即 DNS-OVL，DNS
 
 当给定模拟听者的听力阈值时，HASQI 和 HASPI 可分别用于评估模拟正常听力和听力受损听者的语音质量和语音可理解性。对于听力正常的听者，在 HASQI 和 HASPI 要求的所有频率（250、500、1000、2000、4000 和 6000 Hz）下，听力阈值设置为 0 dB HL。对于听力受损的听者，将听力学阈值指定为大于 0 dB HL，并修改听觉模型，以考虑听力损失的一些典型后果，如频率选择性降低和耳蜗压缩减少。HASQI 和 HASPI 的值以百分比表示，范围从0%到100%，分数越高表示性能越好。
 
+pesq 可以通过 pesq 包 
+
+```python
+from scipy.io import wavfile
+from pesq import pesq
+
+rate, ref = wavfile.read("./audio/speech.wav")
+rate, deg = wavfile.read("./audio/speech_bab_0dB.wav")
+
+print(pesq(rate, ref, deg, 'wb'))
+print(pesq(rate, ref, deg, 'nb'))
+
+# pesq_batch
+```
+
+
+
+stoi 可以通过 pystoi 包
+
+```python
+import soundfile as sf
+from pystoi import stoi
+
+clean, fs = sf.read('path/to/clean/audio')
+denoised, fs = sf.read('path/to/denoised/audio')
+
+# Clean and den should have the same length, and be 1D
+d = stoi(clean, denoised, fs, extended=False)
+```
+
+
+
+
+
 
 
 ### 实验

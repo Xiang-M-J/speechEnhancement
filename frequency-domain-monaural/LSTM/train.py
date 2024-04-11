@@ -69,7 +69,7 @@ for epoch in tqdm(range(epochs)):
             valid_loss += loss.data.item()
     print("epoch {}: valid loss: {:.3f}".format(epoch, valid_loss / valid_step))
     valid_losses.append(valid_loss / valid_step)
-    if valid_loss > last_valid_loss:
+    if valid_loss >= last_valid_loss:
         dec_counter += 1
     else:
         dec_counter = 0
@@ -77,6 +77,8 @@ for epoch in tqdm(range(epochs)):
 
     if (epoch+1) % 5 == 0:
         torch.save(model, f"CP_dir/{epoch}.pt")
+    
+    np.save("loss.npy", {"train_loss": train_losses, "valid_loss": valid_losses})
 
     if dec_counter == 3:    # 损失连续上升 3 次，降低学习率
         lr = lr / 2

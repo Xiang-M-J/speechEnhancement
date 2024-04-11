@@ -1,10 +1,3 @@
-## AUTHOR:         Aaron Nicolson
-## AFFILIATION:    Signal Processing Laboratory, Griffith University
-##
-## This Source Code Form is subject to the terms of the Mozilla Public
-## License, v. 2.0. If a copy of the MPL was not distributed with this
-## file, You can obtain one at http://mozilla.org/MPL/2.0/.
-
 from deepxi.args_resnet import get_args
 from deepxi.model import DeepXi
 from deepxi.prelim import Prelim
@@ -14,7 +7,6 @@ import numpy as np
 import os
 
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
-os.environ['CUDA_VISIBLE_DEVICES'] = '3'
 
 # from tensorflow.compat.v1 import ConfigProto
 # from tensorflow.compat.v1 import InteractiveSession
@@ -46,13 +38,15 @@ if __name__ == '__main__':
     N_s = int(args.f_s * args.T_s * 0.001)  # window shift (samples).
     K = int(pow(2, np.ceil(np.log2(N_d))))  # number of DFT components.
 
-    # if args.train:
-    # 	train_s_list = utils.batch_list(train_s_path, 'clean_speech', args.data_path)
-    # 	train_d_list = utils.batch_list(train_x_path, 'noise', args.data_path)
-    # 	if args.val_flag:
-    # 		val_s, val_d, val_s_len, val_d_len, val_snr = utils.val_wav_batch(val_s_path, val_x_path)
-    # 	else: val_s, val_d, val_s_len, val_d_len, val_snr = None, None, None, None, None
-    # else: train_s_list, train_d_list = None, None
+    if args.train:
+        train_s_list = utils.batch_list(train_s_path, 'clean_speech', args.data_path)
+        train_d_list = utils.batch_list(train_x_path, 'noise', args.data_path)
+        if args.val_flag:
+            val_s, val_d, val_s_len, val_d_len, val_snr = utils.val_wav_batch(val_s_path, val_x_path)
+        else:
+            val_s, val_d, val_s_len, val_d_len, val_snr = None, None, None, None, None
+    else:
+        train_s_list, train_d_list = None, None
 
     args.train = False
     args.infer = True
