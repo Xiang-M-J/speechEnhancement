@@ -3,9 +3,16 @@ import torch
 import torch.nn as nn
 from torch.autograd import Variable
 from Step2_config import win_size, win_shift, fft_num
-from Backup import numParams
+# from Backup import numParams
 import torch.nn.functional as F
 #from ptflops import get_model_complexity_info
+
+def numParams(net):
+    num = 0
+    for param in net.parameters():
+        if param.requires_grad:
+            num += int(np.prod(param.size()))
+    return num
 
 class gaf_base(nn.Module):
     def __init__(self,

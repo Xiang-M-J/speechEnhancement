@@ -14,8 +14,8 @@ This survey paper first provides a comprehensive overview of traditional and dee
 
 ![1698239211452](https://github.com/cszheng-ioa/Sixty-years-of-frequency-domain-monaural-speech-enhancement/assets/61300032/5a1496fa-a6ef-4f25-9432-2325d50d6cf5)
 
-
 **Results**<br>
+
 1.	Objective test results using the Voice Bank + DEMAND dataset when the input feature was uncompressed. Best scores are highlighted in Bold.
 
 ![image](https://github.com/cszheng-ioa/Sixty-years-of-frequency-domain-monaural-speech-enhancement/assets/61300032/76610ec0-6f92-4b35-aa33-37fcecff683c)
