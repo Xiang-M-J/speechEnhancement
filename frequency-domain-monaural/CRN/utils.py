@@ -38,6 +38,76 @@ class VoiceBankDemand(Dataset):
     def __len__(self):
         return len(self.files)
 
+class VoiceBankDemandIter:
+    def __init__(self, scp, noisy_path, clean_path, batch_size=16, files=None, shuffle=False, seed=42) -> None:
+        if files is None:
+            with open(scp, 'r') as f:
+                self.files = f.readlines()
+
+            while not self.files[-1].startswith("p"):
+                self.files.pop()
+            for i in range(len(self.files)):
+                self.files[i] = self.files[i][:-1]
+            np.random.seed(seed)
+            np.random.shuffle(self.files)
+        else:
+            self.files = files
+            if shuffle == True:
+                np.random.shuffle(self.files)
+
+        self.idx = 0
+        self.max_iter = math.ceil(len(self.files) / batch_size)
+
+        self.noisy_path = noisy_path
+        self.clean_path = clean_path
+        self.batch_size = batch_size
+        self.shuffle = shuffle
+
+    def train_valid_spilt(self, split_size: list):
+        """
+        分割验证集，使用返回的files创建新的类，需要指定 files，
+
+        dataset = VoiceBankDemandBatch(" ", noisy_path, clean_path, batch_size=16, files=files)
+        """
+        train_num = math.ceil(split_size[0] * len(self.files))
+        train_files = self.files[:train_num]
+        valid_files = self.files[train_num:]
+        return train_files, valid_files
+    
+    def __iter__(self):
+        return self
+    
+    def __next__(self):
+        if self.idx >= self.max_iter:
+            raise StopIteration
+        clean_audios = []
+        noisy_audios = []
+        if self.idx == self.max_iter - 1:
+            for file in self.files[self.idx * self.batch_size:]:
+                noisy_wav = os.path.join(self.noisy_path, f"{file}.wav")
+                clean_wav = os.path.join(self.clean_path, f"{file}.wav")
+                noisy_audios.append(preprocess(noisy_wav))
+                clean_audios.append(preprocess(clean_wav))
+        elif self.idx < self.max_iter - 1:
+            for file in self.files[self.idx * self.batch_size: (self.idx + 1) * self.batch_size]:
+                noisy_wav = os.path.join(self.noisy_path, f"{file}.wav")
+                clean_wav = os.path.join(self.clean_path, f"{file}.wav")
+                noisy_audios.append(preprocess(noisy_wav))
+                clean_audios.append(preprocess(clean_wav))
+        else:
+            raise f"index {self.idx} 超出界限"
+        noisy_feat, _ = getstftSpec_torch_batch(noisy_audios)
+        clean_feat, _ = getstftSpec_torch_batch(clean_audios)
+        self.idx += 1
+        return noisy_feat, clean_feat
+
+    def __len__(self):
+        return self.max_iter
+
+    def test_run_out(self):
+        if self.idx == self.max_iter:
+            return True
+        return False
 
 class VoiceBankDemandBatch:
     def __init__(self, scp, noisy_path, clean_path, batch_size=16, files=None, shuffle=False, seed=42) -> None:
