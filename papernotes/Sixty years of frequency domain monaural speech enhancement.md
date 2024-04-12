@@ -383,6 +383,7 @@ print(pesq(rate, ref, deg, 'wb'))
 print(pesq(rate, ref, deg, 'nb'))
 
 # pesq_batch
+
 ```
 
 
@@ -410,9 +411,11 @@ d = stoi(clean, denoised, fs, extended=False)
 
 #### CRN
 
-
+基本结构为一个卷积编码器+lstm+反卷积解码器
 
 
 
 #### DPCRN
+
+将CRN中的RNN替换为双路径（块内和块间）RNN模块，其中块内RNN用于模拟单个帧的频谱模式，块间RNN用于模拟连续帧的相互依赖性。
 
