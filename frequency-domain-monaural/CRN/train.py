@@ -15,7 +15,7 @@ test_clean_path = os.path.join(base_path, "clean_testset_wav")
 test_noisy_path = os.path.join(base_path, "noisy_testset_wav")
 test_scp_path = os.path.join(base_path, "test.scp")
 
-device = "cuda" if torch.cuda.is_available() else "cpu"
+device = torch.device("cuda") if torch.cuda.is_available() else torch.device("cpu")
 
 
 train_dataset = VoiceBankDemand(train_scp_path, train_noisy_path, train_clean_path)
@@ -30,7 +30,7 @@ model = crn_net()
 model = model.to(device=device)
 loss_fn = torch.nn.MSELoss()
 loss_fn = loss_fn.to(device=device)
-optim = torch.optim.Adam(model.parameters(), lr=lr, betas=[0.9, 0.999])
+optim = torch.optim.Adam(model.parameters(), lr=lr, betas=(0.9, 0.999))
 
 train_step = len(train_loader)
 valid_step = len(valid_loader)
