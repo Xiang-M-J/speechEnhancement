@@ -86,8 +86,8 @@ for epoch in tqdm(range(epochs)):
         dec_counter = 0
     last_valid_loss = valid_loss
     if (epoch + 1) % 5 == 0:
-        torch.save(model, f"CP_dir/{epoch + 1}_b.pt")
-    np.save("loss_b.npy", np.array({"train_loss": train_losses, "valid_loss": valid_losses}))
+        torch.save(model, f"CP_dir/{epoch + 1}_b2.pt")
+    np.save("loss_b2.npy", np.array({"train_loss": train_losses, "valid_loss": valid_losses}))
     if dec_counter == 3:  # 损失连续上升 3 次，降低学习率
         lr = lr / 2
         print(f"epoch {epoch}: lr half to {lr}")
@@ -95,22 +95,23 @@ for epoch in tqdm(range(epochs)):
             param_groups['lr'] = lr
     elif dec_counter == 5:  # 损失连续上升 5 次，停止训练
         print(f"epoch {epoch}: early stop")
-        torch.save(model, f"BEST_MODEL/{epoch}_b.pt")
+        torch.save(model, f"BEST_MODEL/{epoch}_b2.pt")
         break
-torch.save(model, "CP_dir/final_b.pt")
+torch.save(model, "CP_dir/final_b2.pt")
 
 # test phase
 
 test_loss = 0
+test_step = len(test_loader)
 model.eval()
 
 with torch.no_grad():
-    for i in range(len(test_loader)):
-        batch = test_loader.batch()
+    for i in range(test_step):
+        batch = next(test_loader)
         x = batch[0].to(device)
         y = batch[1].to(device)
         y_pred = model(x)
         loss = loss_fn(y_pred, y)
         test_loss += loss.data.item()
 
-np.save("test_loss_b.npy", test_loss / len(test_loader))
+np.save("test_loss_b2.npy", test_loss / len(test_loader))
