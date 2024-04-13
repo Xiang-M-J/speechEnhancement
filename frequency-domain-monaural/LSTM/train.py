@@ -1,5 +1,6 @@
 import torch
 import os
+from tensorboardX import SummaryWriter
 import torch.utils
 from utils import VoiceBankDemand, collate_fn
 from torch.utils.data import DataLoader, random_split
@@ -15,7 +16,7 @@ test_clean_path = os.path.join(base_path, "clean_testset_wav")
 test_noisy_path = os.path.join(base_path, "noisy_testset_wav")
 test_scp_path = os.path.join(base_path, "test.scp")
 
-device = "cuda" if torch.cuda.is_available() else "cpu"
+device = torch.device("cuda") if torch.cuda.is_available() else torch.device("cpu")
 
 train_dataset = VoiceBankDemand(train_scp_path, train_noisy_path, train_clean_path)
 test_dataset = VoiceBankDemand(test_scp_path, test_noisy_path, test_clean_path)
@@ -26,11 +27,16 @@ train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True, co
 valid_loader = DataLoader(valid_dataset, batch_size=batch_size, shuffle=True, collate_fn=collate_fn)
 test_loader = DataLoader(test_dataset, batch_size=batch_size, shuffle=True, collate_fn=collate_fn)
 
+writer = SummaryWriter()
+
 model = lstm_net()
 model = model.to(device=device)
 loss_fn = torch.nn.MSELoss()
 loss_fn = loss_fn.to(device=device)
-optim = torch.optim.Adam(model.parameters(), lr=lr, betas=[0.9, 0.999])
+optim = torch.optim.Adam(model.parameters(), lr=lr, betas=(0.9, 0.999))
+
+writer.add_scalar("data/betas", np.array([0.9, 0.99]))
+writer.add_scalar("data/epoch", epochs)
 
 train_step = len(train_loader)
 valid_step = len(valid_loader)
@@ -77,8 +83,10 @@ for epoch in tqdm(range(epochs)):
 
     if (epoch+1) % 5 == 0:
         torch.save(model, f"CP_dir/{epoch}.pt")
-    
-    np.save("loss.npy", {"train_loss": train_losses, "valid_loss": valid_losses})
+
+    writer.add_scalar("data/train loss", train_loss/train_step, epoch)
+    writer.add_scalar("data/valid loss", valid_loss/train_step, epoch)
+    np.save("loss.npy", np.array({"train_loss": train_losses, "valid_loss": valid_losses}))
 
     if dec_counter == 3:    # 损失连续上升 3 次，降低学习率
         lr = lr / 2
@@ -86,14 +94,13 @@ for epoch in tqdm(range(epochs)):
         for param_groups in optim.param_groups:
             param_groups['lr'] = lr
     elif dec_counter == 5:                       # 损失连续上升 5 次，停止训练
-        
         print(f"epoch {epoch}: early stop")
         torch.save(model, f"BEST_MODEL/{epoch}.pt")
         break
 
+    writer.add_scalar("data/lr", lr, epoch)
 
 torch.save(model, "CP_dir/final.pt")
-np.save("loss.npy", {"train_loss": train_losses, "valid_loss": valid_losses})
 
 # test phase
 
@@ -108,4 +115,5 @@ with torch.no_grad():
         loss = loss_fn(y_pred, y)
         test_loss += loss.data.item()
 
+writer.add_scalar("data/test loss", test_loss / len(test_loader))
 np.save("test_loss.npy", test_loss / len(test_loader))
