@@ -3,8 +3,8 @@ import os
 import numpy as np
 import torch.utils
 from tqdm import tqdm
-
-from CRN import crn_net
+from tensorboardX import SummaryWriter
+from LSTM import lstm_net
 from config import batch_size, lr, epochs
 from utils import VoiceBankDemandIter
 
@@ -26,12 +26,17 @@ train_loader = VoiceBankDemandIter(" ", train_noisy_path, train_clean_path,
                                     batch_size=batch_size, files=train_files, shuffle=True)
 valid_loader = VoiceBankDemandIter(" ", train_noisy_path, train_clean_path,
                                     batch_size=batch_size, files=valid_files, shuffle=True)
+writer = SummaryWriter()
 
-model = crn_net()
+model = lstm_net()
 model = model.to(device=device)
 loss_fn = torch.nn.MSELoss()
 loss_fn = loss_fn.to(device=device)
 optim = torch.optim.Adam(model.parameters(), lr=lr, betas=(0.9, 0.999))
+
+writer.add_text("epoch", str(epochs))
+writer.add_text("betas", "0.9, 0.999")
+
 
 train_step = len(train_loader)
 valid_step = len(valid_loader)
@@ -39,6 +44,8 @@ last_valid_loss = 0
 dec_counter = 0
 train_losses = []
 valid_losses = []
+
+# train phase
 
 for epoch in tqdm(range(epochs)):
     train_loss = 0
@@ -86,8 +93,11 @@ for epoch in tqdm(range(epochs)):
         dec_counter = 0
     last_valid_loss = valid_loss
     if (epoch + 1) % 5 == 0:
-        torch.save(model, f"CP_dir/{epoch + 1}_b2.pt")
-    np.save("loss_b2.npy", np.array({"train_loss": train_losses, "valid_loss": valid_losses}))
+        torch.save(model, f"CP_dir/{epoch + 1}_bi.pt")
+    
+    writer.add_scalar("train loss", train_loss/train_step, epoch)
+    writer.add_scalar("valid loss", valid_loss/train_step, epoch)
+    np.save("loss_bi.npy", np.array({"train_loss": train_losses, "valid_loss": valid_losses}))
     if dec_counter == 3:  # 损失连续上升 3 次，降低学习率
         lr = lr / 2
         print(f"epoch {epoch}: lr half to {lr}")
@@ -95,9 +105,11 @@ for epoch in tqdm(range(epochs)):
             param_groups['lr'] = lr
     elif dec_counter == 5:  # 损失连续上升 5 次，停止训练
         print(f"epoch {epoch}: early stop")
-        torch.save(model, f"BEST_MODEL/{epoch}_b2.pt")
+        torch.save(model, f"BEST_MODEL/{epoch}_bi.pt")
         break
-torch.save(model, "CP_dir/final_b2.pt")
+    writer.add_scalar("lr", lr, epoch)
+
+torch.save(model, "CP_dir/final_bi.pt")
 
 # test phase
 
@@ -114,4 +126,7 @@ with torch.no_grad():
         loss = loss_fn(y_pred, y)
         test_loss += loss.data.item()
 
-np.save("test_loss_b2.npy", test_loss / len(test_loader))
+np.save("test_loss_bi.npy", test_loss / test_step)
+
+writer.add_text("test loss", str(test_loss / test_step))
+writer.close()
