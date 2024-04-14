@@ -18,14 +18,14 @@ file_path = '/media/luoxiaoxue/datasets/VB_DEMAND_48K'
 loss_dir = './LOSS/vb_dccrn_noncprs_model_loss.mat'
 cpk_path = './ckp_model_dir'
 is_cpk = True
-batch_size = 16
+batch_size = 4
 epochs = 60
 lr = 1e-3
 best_path = './BEST_MODEL/vb_dccrn_noncprs_model.pth'
 
 check_point_path = './models'
 loss_path = "./loss"
-metric_path = "./metircs"
+metric_path = "./metrics"
 
 os.makedirs('./BEST_MODEL', exist_ok=True)
 os.makedirs(loss_path, exist_ok=True)

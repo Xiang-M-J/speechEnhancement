@@ -5,6 +5,7 @@ from conv_stft import ConvSTFT, ConviSTFT
 from Backup import numParams
 from complexnn import ComplexConv2d, ComplexConvTranspose2d, NavieComplexLSTM, complex_cat, ComplexBatchNorm
 
+
 class DCCRN(nn.Module):
     def __init__(
             self,
@@ -18,7 +19,7 @@ class DCCRN(nn.Module):
             use_clstm=False,
             use_cbn=False,
             kernel_size=5,
-            kernel_num=[16, 32, 64, 128, 256, 256]
+            kernel_num=None
     ):
         '''
 
@@ -29,6 +30,8 @@ class DCCRN(nn.Module):
         super(DCCRN, self).__init__()
 
         # for fft
+        if kernel_num is None:
+            kernel_num = [16, 32, 64, 128, 256, 256]
         self.win_len = win_len
         self.win_inc = win_inc
         self.fft_len = fft_len
@@ -160,10 +163,10 @@ class DCCRN(nn.Module):
         normed_cspecs = (cspecs-means)/(std+1e-8)
         out = normed_cspecs
         '''
-        real, imag = inputs[:,0,...], inputs[:,-1,...]
+        real, imag = inputs[:, 0, ...], inputs[:, -1, ...]
         spec_mags = torch.norm(inputs, dim=1)
-        spec_phase = torch.atan2(inputs[:,-1,...], inputs[:,0,...])
-        inputs = inputs[:,:,1:]
+        spec_phase = torch.atan2(inputs[:, -1, ...], inputs[:, 0, ...])
+        inputs = inputs[:, :, 1:]
         out = inputs
         encoder_out = []
 
@@ -258,16 +261,19 @@ class DCCRN(nn.Module):
             b, d, t = inputs.shape
             return torch.mean(torch.abs(inputs - gth_spec)) * d
 
+
 def remove_dc(data):
     mean = torch.mean(data, -1, keepdim=True)
     data = data - mean
     return data
+
 
 def l2_norm(s1, s2):
     # norm = torch.sqrt(torch.sum(s1*s2, 1, keepdim=True))
     # norm = torch.norm(s1*s2, 1, keepdim=True)
     norm = torch.sum(s1 * s2, -1, keepdim=True)
     return norm
+
 
 def si_snr(s1, s2, eps=1e-8):
     # s1 = remove_dc(s1)
@@ -292,11 +298,12 @@ def test_complex():
     out = tconv(out)
     print(out.shape)
 
+
 if __name__ == '__main__':
     torch.manual_seed(10)
     torch.autograd.set_detect_anomaly(True)
-    inputs = torch.randn([4,2,257,101])
-    labels = torch.randn([4,2,257,101])
+    inputs = torch.randn([4, 2, 257, 101])
+    labels = torch.randn([4, 2, 257, 101])
 
     '''
     # DCCRN-E

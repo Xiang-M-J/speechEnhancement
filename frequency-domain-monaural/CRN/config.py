@@ -18,7 +18,7 @@ lr = 1e-3
 model_best_path = './BEST_MODEL/vb_crn_noncprs_model.pth'
 check_point_path = './models'
 loss_path = "./loss"
-metric_path = "./metircs"
+metric_path = "./metrics"
 
 os.makedirs('./BEST_MODEL', exist_ok=True)
 os.makedirs(loss_path, exist_ok=True)
