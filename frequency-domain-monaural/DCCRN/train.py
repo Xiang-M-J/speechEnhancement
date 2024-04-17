@@ -53,7 +53,7 @@ for epoch in tqdm(range(epochs)):
     valid_loss = 0
     count = 0
     model.train()
-    for i, batch in enumerate(train_loader):
+    for i, batch in (enumerate(train_loader)):
         x = batch[0].to(device)
         y = batch[1].to(device)
         y_pred = model(x)
@@ -83,7 +83,7 @@ for epoch in tqdm(range(epochs)):
     last_valid_loss = valid_loss
 
     if (epoch+1) % 5 == 0:
-        torch.save(model, f"CP_dir/{epoch+1}.pt")
+        torch.save(model, f"{check_point_path}/{epoch+1}.pt")
 
     writer.add_scalar("train loss", train_loss/train_step, epoch)
     writer.add_scalar("valid loss", valid_loss/train_step, epoch)
@@ -101,7 +101,7 @@ for epoch in tqdm(range(epochs)):
 
     writer.add_scalar("lr", lr, epoch)
 
-torch.save(model, "CP_dir/final.pt")
+torch.save(model, f"{check_point_path}/final.pt")
 
 # test phase
 
@@ -118,7 +118,7 @@ with torch.no_grad():
         test_loss += loss.data.item()
 
 
-np.save("test_loss.npy", test_loss / len(test_loader))
+np.save(f"{loss_path}/test_loss.npy", test_loss / len(test_loader))
 
 writer.add_text("test loss", str(test_loss / test_step))
 writer.close()

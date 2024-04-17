@@ -291,8 +291,8 @@ if __name__ == "__main__":
     # print(i)
 
     # 时间更短
-    # train_loader = VoiceBankDemandBatch(train_scp_path, train_noisy_path, train_noisy_path, 16)  # 38s
-    # for e in range(3):
-    #     for i in tqdm(range(len(train_loader))):
-    #         batch = train_loader.batch()
-        # print(i)
+    train_loader = VoiceBankDemandBatch(train_scp_path, train_noisy_path, train_noisy_path, 16)  # 38s
+    for e in range(3):
+        for i in tqdm(range(len(train_loader))):
+            batch = train_loader.batch()
+        print(i)

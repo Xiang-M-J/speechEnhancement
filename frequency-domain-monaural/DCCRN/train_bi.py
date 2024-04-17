@@ -28,7 +28,7 @@ valid_loader = VoiceBankDemandIter(" ", train_noisy_path, train_clean_path,
                                    batch_size=batch_size, files=valid_files, shuffle=True)
 writer = SummaryWriter()
 
-model = DCCRN(rnn_units=256, masking_mode='E', use_clstm=True, kernel_num=[32, 64, 128, 256, 256, 256])
+model = DCCRN(rnn_units=256, masking_mode='E', use_clstm= True, kernel_num=[32, 64, 128, 256, 256, 256])
 model = model.to(device=device)
 loss_fn = torch.nn.MSELoss()
 loss_fn = loss_fn.to(device=device)
@@ -62,7 +62,7 @@ for epoch in tqdm(range(epochs)):
         valid_loader = VoiceBankDemandIter(" ", train_noisy_path, train_clean_path,
                                            batch_size=batch_size, files=v_files, shuffle=True)
 
-    for i in range(train_step):
+    for i in tqdm(range(train_step)):
         batch = next(train_loader)
         x = batch[0].to(device)    # B 2 feat_dim seq_len
         y = batch[1].to(device)
