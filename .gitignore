@@ -1,6 +1,10 @@
 datasets
 *.pt
 *.pth
+*.rar
+*.zip
+*.7z
+*.pdf
 
 .idea
 */.idea
@@ -11,3 +15,4 @@ runs
 */runs
 */*/runs
 */*/*/runs
+*.xlsx
