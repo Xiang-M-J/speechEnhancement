@@ -42,8 +42,8 @@ def test_epoch(model, test_iter, device, criterion, batch_size, test_all=False):
         loss_sum = 0
         i = 0
         for ind, (x, y) in enumerate(test_iter):
-            x = x.view(x.size(0) * x.size(1), x.size(2)).to(device).float()
-            y = y.view(y.size(0) * y.size(1), y.size(2)).to(device).float()
+            # x = x.view(x.size(0) * x.size(1), x.size(2)).to(device).float()
+            # y = y.view(y.size(0) * y.size(1), y.size(2)).to(device).float()
             for index in range(0, x.size(0) - batch_size, batch_size):
                 x_item = x[index:index + batch_size, :].squeeze(0)
                 y_item = y[index:index + batch_size, :].squeeze(0)
