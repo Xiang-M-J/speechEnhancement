@@ -58,17 +58,17 @@ function [ scores ] = pesq( ref_wav, deg_wav )
     elseif nargin > 2, error('%s.m: Incorrect number of input arguments.\nFor usage help type: help %s',mfilename,mfilename);
     end
 
-    if ~isstr( ref_wav ), error( '%s.m: First input argumnet has to be a reference wav filename as string.\nFor usage help type: help %s',mfilename,mfilename); end;
-    if ~isstr( deg_wav ), error( '%s.m: Second input argumnet has to be a processed wav filename as string.\nFor usage help type: help %s',mfilename,mfilename); end;
+    if ~isstr( ref_wav ), error( '%s.m: First input argumnet has to be a reference wav filename as string.\nFor usage help type: help %s',mfilename,mfilename); end
+    if ~isstr( deg_wav ), error( '%s.m: Second input argumnet has to be a processed wav filename as string.\nFor usage help type: help %s',mfilename,mfilename); end
 
-    if ~exist( ref_wav, 'file' ), error( '%s.m: Reference wav file: %s not found.',mfilename,ref_wav); end;
-    if ~exist( deg_wav, 'file' ), error( '%s.m: Processed wav file: %s not found.',mfilename,deg_wav); end;
+    if ~exist( ref_wav, 'file' ), error( '%s.m: Reference wav file: %s not found.',mfilename,ref_wav); end
+    if ~exist( deg_wav, 'file' ), error( '%s.m: Processed wav file: %s not found.',mfilename,deg_wav); end
 
-    [ ref_data, ref_sampling_rate ] = wavread( ref_wav ); 
-    [ deg_data, deg_sampling_rate ] = wavread( deg_wav );
+    [ ref_data, ref_sampling_rate ] = audioread( ref_wav ); 
+    [ deg_data, deg_sampling_rate ] = audioread( deg_wav );
 
     if ref_sampling_rate ~= deg_sampling_rate, error( '%s.m: Sampling rate mismatch.\nThe sampling rate of the reference wav file (%i Hz) has to match sampling rate of the degraded wav file (%i Hz).',mfilename,ref_sampling_rate,deg_sampling_rate);
-    else, sampling_rate = ref_sampling_rate; end;
+    else, sampling_rate = ref_sampling_rate; end
 
     if sampling_rate==8E3, mode='narrowband'; 
     elseif sampling_rate==16E3, mode='wideband';
@@ -228,7 +228,7 @@ function [ scores ] = pesq( ref_wav, deg_wav )
         case { 'wb', '+wb', 'wideband', '+wideband' }
             % WB: P.862.2->P.800.1 (PESQ_MOS->MOS_LQO)
             mos_lqo = 0.999 + ( 4.999-0.999 ) ./ ( 1+exp(-1.3669*pesq_mos+3.8224) );
-            scores = [ mos_lqo ];
+            scores = mos_lqo ;
 
         otherwise
             error( sprintf('Mode: "%s" is unsupported.', mode) ); 
@@ -285,7 +285,7 @@ function align_filtered= apply_filter( data, data_Nsamples, align_filter_dB)
 function mod_data= apply_filters( data, Nsamples)
     %IIRFilt( InIIR_Hsos, InIIR_Nsos, data, data_Nsamples);
     
-    global InIIR_Hsos InIIR_Nsos DATAPADDING_MSECS Fs
+    global InIIR_Hsos InIIR_Nsos  Fs
     % data_Nsamples= Nsamples+ DATAPADDING_MSECS* (Fs/ 1000);
     
     % now we construct the second order section matrix
@@ -372,7 +372,7 @@ function [VAD, logVAD]= apply_VAD( data, Nsamples)
     LevelNoise= 0;
     LevelSig= 0;
     len= 0;
-    VAD_greaterthan_LevelThresh= VAD( find( VAD> LevelThresh));
+    VAD_greaterthan_LevelThresh= VAD(  VAD> LevelThresh);
     len= length( VAD_greaterthan_LevelThresh);
     LevelSig= sum( VAD_greaterthan_LevelThresh);
     
@@ -468,7 +468,7 @@ function [VAD, logVAD]= apply_VAD( data, Nsamples)
         count= count+ 1;
     end
     
-    VAD( find( VAD< 0))= 0;
+    VAD(  VAD< 0)= 0;
     
     % fid= fopen( 'mat_vad.txt', 'wt');
     % fprintf( fid, '%f\n', VAD);
@@ -649,7 +649,7 @@ function mod_data= fix_power_level( data, data_Nsamples, maxNsamples)
     mod_data= data* global_scale;
 
 
-function id_searchwindows( ref_VAD, ref_Nsamples, deg_VAD, deg_Nsamples);
+function id_searchwindows( ref_VAD, ref_Nsamples, deg_VAD, deg_Nsamples)
     
     global MINUTTLENGTH Downsample MINUTTLENGTH SEARCHBUFFER
     global Crude_DelayEst Nutterances UttSearch_Start UttSearch_End
@@ -1720,7 +1720,7 @@ function hz_spectrum= short_term_fft (Nf, data, Whanning, start_sample)
     
 
 
-function pitch_pow_dens= freq_warping( hz_spectrum, Nb, frame)
+function pitch_pow_dens= freq_warping( hz_spectrum, Nb, ~)
     
     global nr_of_hz_bands_per_bark_band pow_dens_correction_factor
     global Sp
@@ -1809,7 +1809,7 @@ function setup_global( sampling_rate);
     global Downsample InIIR_Hsos InIIR_Nsos Align_Nfft
     global DATAPADDING_MSECS SEARCHBUFFER Fs MINSPEECHLGTH JOINSPEECHLGTH
     
-    global Nutterances Largest_uttsize Nsurf_samples Crude_DelayEst
+    global  Largest_uttsize Nsurf_samples Crude_DelayEst
     global Crude_DelayConf UttSearch_Start UttSearch_End Utt_DelayEst
     global Utt_Delay Utt_DelayConf Utt_Start Utt_End
     global MAXNUTTERANCES WHOLE_SIGNAL
@@ -2572,7 +2572,7 @@ function time_align(ref_data, ref_Nsamples, deg_data, deg_Nsamples, Utt_id)
 function utterance_locate (ref_data, ref_Nsamples, ref_VAD, ref_logVAD,...
         deg_data, deg_Nsamples, deg_VAD, deg_logVAD);
     
-    global Nutterances Utt_Delay Utt_DelayConf Utt_Start Utt_End Utt_DelayEst
+    global Nutterances Utt_Delay Utt_DelayConf  Utt_End Utt_DelayEst
     
     id_searchwindows( ref_VAD, ref_Nsamples, deg_VAD, deg_Nsamples);
     

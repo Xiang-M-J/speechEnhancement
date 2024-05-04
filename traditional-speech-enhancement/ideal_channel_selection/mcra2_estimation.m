@@ -1,4 +1,4 @@
-function parameters = newmethod_estimation(ns_ps,parameters)
+function parameters = mcra2_estimation(ns_ps,parameters)
 
 % parameters = struct('n',2,'len',len_val,'ad',0.95,'as',0.8,'ap',0.2,'beta',0.8,'beta1',0.98,'gamma',0.998,'alpha',0.7,...
 %             'pk',zeros(len_val,1),'noise_ps',ns_ps,'pxk_old',ns_ps,'pxk',ns_ps,'pnk_old',ns_ps,'pnk',ns_ps);

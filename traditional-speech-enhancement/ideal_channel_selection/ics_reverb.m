@@ -14,11 +14,11 @@ if nargin<4
 end
 
 
-[cl,fs,nb] = wavread(clfile);
+[cl,fs,nb] = audioread(clfile);
 cl = cl -mean(cl);
 x = cl;
 
-[n0,fs2,nb] = wavread(reverbfile); 
+[n0,fs2,nb] = audioread(reverbfile); 
 if fs2~=fs
     error('Sampling frequency of reverb file does not match that of target file');
 end
@@ -99,7 +99,7 @@ if max(abs(xfinal))>1.0
 end
 
 
-wavwrite(xfinal,fs,16,outfile);
+audiowrite(xfinal,fs,16,outfile);
 
 imagesc(BMask)
 

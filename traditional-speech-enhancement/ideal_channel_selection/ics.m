@@ -15,10 +15,10 @@ if nargin<5
 end
 
 
-[cl,fs,nb] = wavread(clfile);
+[cl,fs,nb] = audioread(clfile);
 cl = cl -mean(cl);
 
-[n0,fs2,nb] = wavread(noisefile); 
+[n0,fs2,nb] = audioread(noisefile); 
 if fs2~=fs
     error('Sampling frequency of masker file does not match that of target file');
 end
@@ -40,12 +40,12 @@ ne=norm(n,2)^2;
 x = cl + n;    % the noisy signal
 
 ind1 = find(clfile == '.');
-wavwrite(x,fs,16,[clfile(1:ind1-1) '-noisy.wav']); % save noisy signal
+audiowrite(x,fs,16,[clfile(1:ind1-1) '-noisy.wav']); % save noisy signal
 
 % =============== Initialize variables ===============
 %
 len = floor(20*fs/1000); % Frame size in samples
-if rem(len,2)==1, len=len+1; end;
+if rem(len,2)==1, len=len+1; end
 PERC = 50; % window overlap in percent of frame size
 len1 = floor(len*PERC/100);
 len2 = len-len1;
@@ -113,13 +113,13 @@ end
 
 
 %xfinal = xfinal/32768;
-if max(abs(xfinal))>1.0; %32768
+if max(abs(xfinal))>1.0 %32768
     xfinal = xfinal*0.6/max(abs(xfinal));
     fprintf('Max amplitude exceeded 1 for file %s\n',clfile);
 end
 
 
-wavwrite(xfinal,fs,16,outfile);
+audiowrite(xfinal,fs,16,outfile);
 
 imagesc(BMask)
 

@@ -19,8 +19,8 @@ end
 
 method = 'mcra2'; % noise-estimation algorithm (Rangachari & LOizou, Speech Comm., 2006)
 
-[x, Srate, nb] = wavread(filename);  % noisy speech
-[cl,Srate2,nb] = wavread(clfile);    % clean speech
+[x, Srate, nb] = audioread(filename);  % noisy speech
+[cl,Srate2,nb] = audioread(clfile);    % clean speech
 
 
 % =============== Initialize variables ===============
@@ -165,5 +165,5 @@ if max(abs(xfinal))>1
    fprintf('Max amplitude exceeded 1 for file %s\n',filename);   
 end
 
-wavwrite(xfinal,Srate,16,outfile);
+audiowrite(xfinal,Srate,16,outfile);
 
