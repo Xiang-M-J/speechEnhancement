@@ -1,4 +1,4 @@
-function cep_mean= comp_cep(cleanFile, enhdFile);
+function cep_mean= comp_cep(cleanFile, enhdFile)
 
 % ----------------------------------------------------------------------
 %          Cepstrum Distance Objective Speech Quality Measure
@@ -38,9 +38,9 @@ end
 
 alpha=0.95;
 
-[data1, Srate1, Nbits1]= wavread(cleanFile);
-[data2, Srate2, Nbits2]= wavread(enhdFile);
-if ( Srate1~= Srate2) | ( Nbits1~= Nbits2)
+[data1, Srate1, Nbits1]= audioread(cleanFile);
+[data2, Srate2, Nbits2]= audioread(enhdFile);
+if ( Srate1~= Srate2) || ( Nbits1~= Nbits2)
     error( 'The two files do not match!\n');
 end
     

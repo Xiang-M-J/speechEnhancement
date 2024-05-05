@@ -38,9 +38,9 @@ end
 IRS=0;  % if 1 apply IRS filter simulating telephone handset bandwidth (300 Hz -3.2 kHz)
 
 % wavread gives floating point column data
-[clean, srate, nbits]= wavread(cleanfile); 
+[clean, srate, nbits]= audioread(cleanfile); 
 % filter clean speech with irs filter
-if IRS==1, clean= apply_IRS( clean, srate, nbits); end;
+if IRS==1, clean= apply_IRS( clean, srate, nbits); end
 
 [Px, asl, c0]= asl_P56 ( clean, srate, nbits); 
 % Px is the active speech level ms energy, asl is the active factor, and c0
@@ -50,8 +50,8 @@ if IRS==1, clean= apply_IRS( clean, srate, nbits); end;
 x=clean;
 x_len= length( x); % length of speech signal
 
-[noise, srate1, nbits1]= wavread( noisefile);
-if (srate1~= srate)| (nbits1~= nbits)
+[noise, srate1, nbits1]= audioread( noisefile);
+if (srate1~= srate)|| (nbits1~= nbits)
     error( 'the formats of the two files dont match!');
 end
 noise_len= length( noise);
@@ -65,7 +65,7 @@ rand_start= round( (rand_start_limit- 1)* rand( 1)+ 1);
 % random start of the noise segment 
 noise_segment= noise( rand_start: rand_start+ x_len- 1);
 
-if IRS==1, noise_segment= apply_IRS( noise_segment, srate, nbits); end;
+if IRS==1, noise_segment= apply_IRS( noise_segment, srate, nbits); end
 
 % this is the randomly selected noise segment that will be added to the
 % clean speech x
@@ -77,19 +77,19 @@ noise_segment= noise_segment * sf;
 
 noisy = x+ noise_segment;  
 
-if ( (max( noisy)>= 1) | (min( noisy)< -1))
+if ( (max( noisy)>= 1) || (min( noisy)< -1))
     error( 'Overflow occurred!\n');
-end;
+end
 
 
-wavwrite( noisy, srate, nbits, outfile);
+audiowrite( noisy, srate, nbits, outfile);
 
 fprintf( 1, '\n NOTE: For comparison, the SNR based on long-term RMS level is %4.2f dB.\n\n', 10*log10((x'*x)/ ...
      (noise_segment'*noise_segment)));
 
 
 %------------------------------------------------------------------------
-function data_filtered= apply_IRS( data, Fs, nbits);
+function data_filtered= apply_IRS( data, Fs, nbits)
 
 n= length( data);
 

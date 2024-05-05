@@ -58,8 +58,8 @@ function [ scores ] = pesq( ref_wav, deg_wav )
     elseif nargin > 2, error('%s.m: Incorrect number of input arguments.\nFor usage help type: help %s',mfilename,mfilename);
     end
 
-    if ~isstr( ref_wav ), error( '%s.m: First input argumnet has to be a reference wav filename as string.\nFor usage help type: help %s',mfilename,mfilename); end
-    if ~isstr( deg_wav ), error( '%s.m: Second input argumnet has to be a processed wav filename as string.\nFor usage help type: help %s',mfilename,mfilename); end
+%     if ~isstr( ref_wav ), error( '%s.m: First input argumnet has to be a reference wav filename as string.\nFor usage help type: help %s',mfilename,mfilename); end
+%     if ~isstr( deg_wav ), error( '%s.m: Second input argumnet has to be a processed wav filename as string.\nFor usage help type: help %s',mfilename,mfilename); end
 
     if ~exist( ref_wav, 'file' ), error( '%s.m: Reference wav file: %s not found.',mfilename,ref_wav); end
     if ~exist( deg_wav, 'file' ), error( '%s.m: Processed wav file: %s not found.',mfilename,deg_wav); end

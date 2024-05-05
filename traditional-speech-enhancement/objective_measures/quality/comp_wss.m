@@ -1,4 +1,4 @@
-function wss_dist= comp_wss(cleanFile, enhancedFile);
+function wss_dist= comp_wss(cleanFile, enhancedFile)
 % ----------------------------------------------------------------------
 %
 %     Weighted Spectral Slope (WSS) Objective Speech Quality Measure
@@ -52,9 +52,9 @@ end
 
 alpha= 0.95;
 
-[data1, Srate1, Nbits1]= wavread(cleanFile);
-[data2, Srate2, Nbits2]= wavread(enhancedFile);
-if ( Srate1~= Srate2) | ( Nbits1~= Nbits2)
+[data1, Srate1, Nbits1]= audioread(cleanFile);
+[data2, Srate2, Nbits2]= audioread(enhancedFile);
+if ( Srate1~= Srate2) || ( Nbits1~= Nbits2)
     error( 'The two files do not match!\n');
 end
 

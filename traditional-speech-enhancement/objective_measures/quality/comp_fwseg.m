@@ -1,4 +1,4 @@
-function fwseg_dist= comp_fwseg(cleanFile, enhancedFile);
+function fwseg_dist= comp_fwseg(cleanFile, enhancedFile)
 
 % ----------------------------------------------------------------------
 %      Frequency weighted SNRseg Objective Speech Quality Measure
@@ -36,9 +36,9 @@ if nargin~=2
 end
 
 
-[data1, Srate1, Nbits1]= wavread(cleanFile);
-[data2, Srate2, Nbits2]= wavread(enhancedFile);
-if ( Srate1~= Srate2) | ( Nbits1~= Nbits2)
+[data1, Srate1, Nbits1]= audioread(cleanFile);
+[data2, Srate2, Nbits2]= audioread(enhancedFile);
+if ( Srate1~= Srate2) || ( Nbits1~= Nbits2)
     error( 'The two files do not match!\n');
 end
 

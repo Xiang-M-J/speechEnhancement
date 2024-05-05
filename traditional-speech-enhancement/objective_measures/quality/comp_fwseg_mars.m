@@ -1,4 +1,4 @@
-function [SIG,BAK,OVL]= comp_fwseg_mars(cleanFile, enhancedFile);
+function [SIG,BAK,OVL]= comp_fwseg_mars(cleanFile, enhancedFile)
 
 % ----------------------------------------------------------------------
 %      MARS Frequency-variant fwSNRseg objective speech quality measure
@@ -36,9 +36,9 @@ if nargin~=2
     return;
 end
 
-[data1, Srate1, Nbits1]= wavread(cleanFile);
-[data2, Srate2, Nbits2]= wavread(enhancedFile);
-if ( Srate1~= Srate2) | ( Nbits1~= Nbits2)
+[data1, Srate1, Nbits1]= audioread(cleanFile);
+[data2, Srate2, Nbits2]= audioread(enhancedFile);
+if ( Srate1~= Srate2) || ( Nbits1~= Nbits2)
     error( 'The two files do not match!\n');
 end
 
