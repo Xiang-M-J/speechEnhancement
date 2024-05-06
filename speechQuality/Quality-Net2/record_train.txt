@@ -1,0 +1,11 @@
+1/20/12:18
+
+
+Test error= 0.088304
+Linear correlation coefficient= 0.949251
+Spearman rank correlation coefficient= 0.929174
+
+
+
+
+
