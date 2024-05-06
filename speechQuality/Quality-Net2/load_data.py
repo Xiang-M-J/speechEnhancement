@@ -58,13 +58,11 @@ def start_fun(clean_path):
         for k in range(snr_len):
             new_data = demandNoise.add_noise(clean_path[i], snr_list[k])
             new_path = get_new_path(clean_path[i], snr_list[k])
-            soundfile.write(new_path, new_data, samplerate=fs)
+            soundfile.write(new_path, new_data, samplerate=fs*1000)
 
 
-if __name__ == "__main__":
-    fs = 16
-    demandNoise = DemandNoise(noise_wav_path, fs)
-
+def get_wav_list():
+    
     train_wav = glob("{}\\data\\TRAIN/*/*/*.wav".format(clean_wav_path), recursive=True)
     train_wav = np.array(train_wav[1::2])
     random_index = np.random.permutation(len(train_wav))
@@ -72,10 +70,6 @@ if __name__ == "__main__":
     noise_wav = train_wav[random_index[250:500]]
     enhance_wav = train_wav[random_index[500:750]]
 
-    print(get_new_path(r"D:\work\speechEnhancement\speechQuality\Quality-Net2\noise_wavs",clean_wav[0], 10))
-
-    snr_list = [5 * i for i in range(-2, 6)]
-    snr_len = len(snr_list)
     with open("list/clean.list", "w") as f:
         for wav in clean_wav:
             f.write(wav + "\n")
@@ -85,3 +79,26 @@ if __name__ == "__main__":
     with open("list/enhance.list", "w") as f:
         for wav in enhance_wav:
             f.write(wav + "\n")
+    return clean_wav, noise_wav, enhance_wav
+
+
+if __name__ == "__main__":
+    fs = 16
+    snr_list = [5 * i for i in range(-2, 6)]
+    snr_len = len(snr_list)
+
+    demandNoise = DemandNoise(noise_wav_path, fs)
+
+    clean_wav, noise_wav, enhance_wav = get_wav_list()
+    
+
+    cpu_num = multiprocessing.cpu_count()
+    chunks = len(noise_wav) // cpu_num + 1
+    process = []
+    for i in range(cpu_num):
+        temp = noise_wav[i * chunks:(i + 1) * chunks]
+        p = multiprocessing.Process(target=start_fun, args=(temp,))
+        p.start()
+        process.append(p)
+    for p in process:
+        p.join()
