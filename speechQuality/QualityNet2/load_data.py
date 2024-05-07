@@ -5,22 +5,30 @@ from glob import glob
 import numpy as np
 import soundfile
 import multiprocessing
-
-from pyarrow import fs
+from utils import decode2
+from CRN import crn_net
+import torch
 
 clean_wav_path = r"D:\work\speechEnhancement\datasets\TIMIT"
 noise_wav_path = r"D:\work\speechEnhancement\datasets\Demand"
 
+fs = 16
+snr_list = [5 * i for i in range(-2, 6)]
+snr_len = len(snr_list)
+model = torch.load(r"D:\work\speechEnhancement\speechQuality\QualityNet2\speechEnhance.pt")
+model = model.to("cpu")
+model.eval()
 
 class DemandNoise:
     def __init__(self, path, fs):
         self.path = path
         self.fs = fs
         wav_dirs = os.listdir(self.path)
-        self.noise_types = wav_dirs
+        self.noise_types = []
         self.wav = {}
         for wav_dir in wav_dirs:
             if wav_dir.endswith(f"{fs}k"):
+                self.noise_types.append(wav_dir)
                 self.wav[wav_dir] = os.listdir(os.path.join(path, wav_dir, wav_dir[:-4]))
 
     def add_noise(self, clean_path, snr=10):
@@ -48,21 +56,34 @@ class DemandNoise:
         return new_data
 
 
+demandNoise = DemandNoise(noise_wav_path, fs)
+
+
 def get_new_path(prefix: str, old_path: str, snr: int):
     new_path = "_".join(old_path.split("\\")[-3:])
-    return os.path.join(prefix, new_path[:-8] + "_" + str(snr) + ".wav")
+    return os.path.join(prefix, new_path[:-8] + "_" + str(snr).replace("-", "m") + ".wav")
 
 
 def start_fun(clean_path):
     for i in range(len(clean_path)):
         for k in range(snr_len):
             new_data = demandNoise.add_noise(clean_path[i], snr_list[k])
-            new_path = get_new_path(clean_path[i], snr_list[k])
-            soundfile.write(new_path, new_data, samplerate=fs*1000)
+            new_path = get_new_path(r"D:\work\speechEnhancement\speechQuality\QualityNet2\noise_wavs", clean_path[i],
+                                    snr_list[k])
+            soundfile.write(new_path, new_data, samplerate=fs * 1000)
+
+
+def start_fun2(clean_path):
+    for i in range(len(clean_path)):
+        for k in range(snr_len):
+            new_data = demandNoise.add_noise(clean_path[i], snr_list[k])
+            est_wav = decode2(new_data,model)
+            new_path = get_new_path(r"D:\work\speechEnhancement\speechQuality\QualityNet2\enhance_wavs", clean_path[i],
+                                    snr_list[k])
+            soundfile.write(new_path, est_wav, samplerate=fs * 1000)
 
 
 def get_wav_list():
-    
     train_wav = glob("{}\\data\\TRAIN/*/*/*.wav".format(clean_wav_path), recursive=True)
     train_wav = np.array(train_wav[1::2])
     random_index = np.random.permutation(len(train_wav))
@@ -79,26 +100,31 @@ def get_wav_list():
     with open("list/enhance.list", "w") as f:
         for wav in enhance_wav:
             f.write(wav + "\n")
+
+
+def read_wav_list():
+    with open("list/clean.list", "r") as f:
+        clean_wav = f.read().splitlines()
+    with open("list/noise.list", "r") as f:
+        noise_wav = f.read().splitlines()
+    with open("list/enhance.list", "r") as f:
+        enhance_wav = f.read().splitlines()
     return clean_wav, noise_wav, enhance_wav
 
 
 if __name__ == "__main__":
-    fs = 16
-    snr_list = [5 * i for i in range(-2, 6)]
-    snr_len = len(snr_list)
-
-    demandNoise = DemandNoise(noise_wav_path, fs)
-
-    clean_wav, noise_wav, enhance_wav = get_wav_list()
-    
+    # get_wav_list()
+    clean_wav, noise_wav, enhance_wav = read_wav_list()
 
     cpu_num = multiprocessing.cpu_count()
     chunks = len(noise_wav) // cpu_num + 1
-    process = []
-    for i in range(cpu_num):
-        temp = noise_wav[i * chunks:(i + 1) * chunks]
-        p = multiprocessing.Process(target=start_fun, args=(temp,))
-        p.start()
-        process.append(p)
-    for p in process:
-        p.join()
+    # process = []
+    # for i in range(cpu_num):
+    #     temp = noise_wav[i * chunks:(i + 1) * chunks]
+    #     p = multiprocessing.Process(target=start_fun, args=(temp,))
+    #     p.start()
+    #     process.append(p)
+    # for p in process:
+    #     p.join()
+
+    start_fun2(clean_wav)

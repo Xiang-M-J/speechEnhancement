@@ -1,9 +1,0 @@
-LIBRARY pesq
-EXPORTS
-pesqInitialize
-pesqInitializeWithHandlers
-pesqTerminate
-pesqPrintStackTrace
-mlxPesq
-mlfPesq
-
