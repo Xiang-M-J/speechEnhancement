@@ -1,3 +1,13 @@
+## 一些想法
+
+CNN + 注意力 + 时间编码
+
+生成对抗网络（一个随机加减高斯噪声，一个根据加减情况与上一次的检测结果对应，这种措施可能用于微调）
+
+在使用Quality-Net 训练语音增强模型时，使用联合训练的方式
+
+
+
 ### 主观方法测量语音质量
 
 语音增强理论与实践 Ch10
@@ -234,6 +244,10 @@ ITU-T P.863算法支持窄带模式和全带模式两种工作模式。在窄带
 
 当采样率为 36-72kHz 时，傅里叶变换的窗大小为2048。
 
+
+
+## 论文
+
 ### Quality-Net
 
 大多数客观语音质量评估都基于干净语音和处理后的语音之间的比对，但是在现实场景中难以得到用于参考的干净语音。人可以无需参考语音便可以对语音质量进行评估。这篇论文提出了一种端到端、非侵入式（不需要干净语音参考）的语音质量评估方法 Quality-Net，该方法基于双向LSTM，Quality-Net 中话语水平的评估基于帧层次的评估，采用帧约束和遗忘门偏差的合理初始化，从话语级质量标签中学习有意义的帧级质量评估。
@@ -346,6 +360,32 @@ $$
 RemixIT 训练语音增强模型来分离干净语音和观测噪声。对于初始的教师模型，可以使用在域外数据集上训练的任意语音增强模型，输出为语音分量和一个或多个估计噪声。教师模型的输出中的预测语音和噪声会被随机组合生成新的混合数据来训练学生模型。每隔一段时间，教师模型会利用学生模型的参数来更新自身参数。
 
 每次优化时，RemixIT 尝试最小化学生模型估计和教师模型估计结果在信号水平的损失。
+
+
+
+### HASA-NET: A NON-INTRUSIVE HEARING-AID SPEECH ASSESSMENT NETWORK
+
+已有的一些网络：
+
+预测 PESQ：Quality-Net
+
+预测 MOS：MOSNet、MBNet
+
+语音可理解性：STOI-Net
+
+
+
+本文提出的 HASA-Net 可以同时估计给定语音的质量和可理解性，即预测 HASQI（语音质量）和 HASPI（语音可理解性）分数（多任务学习）
+
+
+
+在 BLSTM 中加入了注意力
+
+
+
+LCC：[scipy.stats.pearsonr — SciPy v0.14.0 Reference Guide](https://docs.scipy.org/doc/scipy-0.14.0/reference/generated/scipy.stats.pearsonr.html)
+
+SRCC：[scipy.stats.spearmanr — SciPy v0.14.0 Reference Guide](https://docs.scipy.org/doc/scipy-0.14.0/reference/generated/scipy.stats.spearmanr.html)
 
 
 
