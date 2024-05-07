@@ -3,7 +3,9 @@ import torch
 import torchaudio
 import torch.nn as nn
 from torch.utils.data import Dataset
+
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+
 
 def Sp_and_phase(path, Noisy=False, compress=False):
     signal, rate = torchaudio.load(path)

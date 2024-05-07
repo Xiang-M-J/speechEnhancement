@@ -173,9 +173,8 @@ class TimeDistributed(nn.Module):
 class QualityNet(nn.Module):
     def __init__(self) -> None:
         super(QualityNet, self).__init__()
-        self.lstm = nn.LSTM(257, 200, bidirectional=True, dropout=0.3, batch_first=True)
-        self.linear1 = TimeDistributed(nn.Linear(400, 200))  # 2 * 100
-        self.linear1_ = TimeDistributed(nn.Linear(200, 50))
+        self.lstm = nn.LSTM(257, 100, bidirectional=True, dropout=0.3, batch_first=True)
+        self.linear1 = TimeDistributed(nn.Linear(200, 50))  # 2 * 100
         self.elu = nn.ELU()
         self.dropout = nn.Dropout(0.3)
 
@@ -185,7 +184,6 @@ class QualityNet(nn.Module):
     def forward(self, x):
         lstm_out, _ = self.lstm(x)
         l1 = self.dropout(self.elu(self.linear1(lstm_out)))
-        l1 = self.dropout(self.elu(self.linear1_(l1)))
         Frame_score = self.linear2(l1).squeeze(-1)
         Average_score = self.avgpool(Frame_score)
         return Frame_score, Average_score
@@ -195,7 +193,7 @@ model = QualityNet()
 
 # Initialization of the forget gate bias (optional)
 W = dict(model.lstm.named_parameters())
-bias_init = np.concatenate((np.zeros([200]), forgetgate_bias * np.ones([200]), np.zeros([400])))
+bias_init = np.concatenate((np.zeros([100]), forgetgate_bias * np.ones([100]), np.zeros([200])))
 
 for name, wight in model.lstm.named_parameters():
     if "bias" in name:

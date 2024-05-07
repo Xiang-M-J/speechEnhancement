@@ -12,8 +12,8 @@ from tqdm import tqdm
 
 from utils import DNSPOLQADataset, ListRead, FrameMse
 
-epoch = 30
-batch_size = 24
+epoch = 25
+batch_size = 32
 forget_gate_bias = -3  # Please see tha paper for more details
 
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
@@ -33,40 +33,15 @@ start_time = time.time()
 print('model building...')
 
 
-class TimeDistributed(nn.Module):
-    def __init__(self, module, batch_first=True):
-        super(TimeDistributed, self).__init__()
-        self.module = module
-        self.batch_first = batch_first
-
-    def forward(self, x):
-
-        if len(x.size()) <= 2:
-            return self.module(x)
-
-        # Squash samples and timesteps into a single axis
-        x_reshape = x.contiguous().view(-1, x.size(-1))  # (samples * timesteps, input_size)
-
-        y = self.module(x_reshape)
-
-        # We have to reshape Y
-        if self.batch_first:
-            y = y.contiguous().view(x.size(0), -1, y.size(-1))  # (samples, timesteps, output_size)
-        else:
-            y = y.view(-1, x.size(1), y.size(-1))  # (timesteps, samples, output_size)
-
-        return y
-
-
 class QualityNet(nn.Module):
     def __init__(self) -> None:
         super(QualityNet, self).__init__()
-        self.lstm = nn.LSTM(257, 100, num_layers=1, bidirectional=True, dropout=0.1, batch_first=True)
-        self.linear1 = TimeDistributed(nn.Linear(200, 50))  # 2 * 100
+        self.lstm = nn.LSTM(257, 100, num_layers=2, bidirectional=True, dropout=0.3, batch_first=True)
+        self.linear1 = nn.Linear(200, 50)  # 2 * 100
         self.elu = nn.ELU()
-        self.dropout = nn.Dropout(0.1)
+        self.dropout = nn.Dropout(0.3)
 
-        self.linear2 = TimeDistributed(nn.Linear(50, 1))
+        self.linear2 = nn.Linear(50, 1)
         self.avgpool = nn.AdaptiveAvgPool1d(1)
 
     def forward(self, x):
@@ -97,7 +72,7 @@ loss1.to(device=device)
 loss2.to(device=device)
 optim = torch.optim.RMSprop(model.parameters(), lr=1e-3)
 
-scheduler = torch.optim.lr_scheduler.StepLR(optim, step_size=10, gamma=0.4)
+scheduler = torch.optim.lr_scheduler.StepLR(optim, step_size=15, gamma=0.2)
 
 print('training...')
 
@@ -121,7 +96,7 @@ for e in tqdm(range(epoch)):
         y1 = y[0]
         y2 = y[1]
         frameS, avgS = model(x)
-        l1 = loss1(avgS, y1)
+        l1 = loss1(avgS.squeeze_(-1), y1)
         l2 = loss2(frameS, y2)
         loss = l1 + l2
         train_loss += loss.cpu().detach().numpy()
@@ -137,53 +112,59 @@ for e in tqdm(range(epoch)):
             y1 = y[0]
             y2 = y[1]
             frameS, avgS = model(x)
-            l1 = loss1(avgS, y1)
+            l1 = loss1(avgS.squeeze_(-1), y1)
             l2 = loss2(frameS, y2)
             loss = l1 + l2
             eval_loss += loss.cpu().detach().numpy()
     print("epoch: {}, valid loss: {}".format(e, eval_loss / test_steps))
     val_losses.append(eval_loss / test_steps)
     scheduler.step()
-    torch.save(model, 'Quality-Net_(Non-intrusive).pt')
+    torch.save(model, 'Quality-Net1.pt')
 
 np.save('data/train_loss.npy', train_losses)
 np.save('data/val_loss.npy', val_losses)
 
 plt.plot(range(epoch), train_losses, val_losses)
+plt.show()
 plt.savefig('train_loss.png')
 
-model = torch.load('Quality-Net_(Non-intrusive).pt')
+model = torch.load('Quality-Net1.pt')
 model.eval()
 print('testing...')
-PESQ_Predict = np.zeros([test_steps, ])
-PESQ_true = np.zeros([test_steps, ])
+POLQA_Predict = np.zeros([test_num, ])
+POLQA_True = np.zeros([test_num, ])
+idx = 0
 with torch.no_grad():
     for batch_idx, (x, y) in enumerate(test_loader):
         y1 = y[0]
         frameS, avgS = model(x)
-        PESQ_Predict[batch_idx] = avgS.cpu().detach().numpy()
-        PESQ_true[batch_idx] = y1.cpu().detach().numpy()
+        batch = frameS.shape[0]
+        est_polqa = avgS.cpu().detach().numpy()
+        true_polqa = y1.cpu().detach().numpy()
+        for i in range(batch):
+            POLQA_Predict[idx + i] = est_polqa[i, 0]
+            POLQA_True[idx + i] = true_polqa[i]
+        idx += batch
 
-MSE = np.mean((PESQ_true - PESQ_Predict) ** 2)
+MSE = np.mean((POLQA_True - POLQA_Predict) ** 2)
 print('Test error= %f' % MSE)
-LCC = np.corrcoef(PESQ_true, PESQ_Predict)
+LCC = np.corrcoef(POLQA_True, POLQA_Predict)
 print('Linear correlation coefficient= %f' % float(LCC[0][1]))
 
-SRCC = scipy.stats.spearmanr(PESQ_true.T, PESQ_Predict.T)
+SRCC = scipy.stats.spearmanr(POLQA_True.T, POLQA_Predict.T)
 print('Spearman rank correlation coefficient= %f' % SRCC[0])
 
 # Plotting the scatter plot
-M = np.max([np.max(PESQ_Predict), 4.55])
+M = np.max([np.max(POLQA_Predict), 4.55])
 plt.figure(1)
-plt.scatter(PESQ_true, PESQ_Predict, s=14)
+plt.scatter(POLQA_True, POLQA_Predict, s=14)
 plt.xlim([0, M])
 plt.ylim([0, M])
 plt.xlabel('True PESQ')
 plt.ylabel('Predicted PESQ')
 plt.title('LCC= %f, SRCC= %f, MSE= %f' % (float(LCC[0][1]), SRCC[0], MSE))
 plt.show()
-plt.savefig('Scatter_plot_Quality-Net_(Non-intrusive)_pt.png', dpi=150)
-
+plt.savefig('Scatter_plot_QualityNet1_pt.png', dpi=150)
 
 end_time = time.time()
 print('The code for this file ran for %.2fm' % ((end_time - start_time) / 60.))
