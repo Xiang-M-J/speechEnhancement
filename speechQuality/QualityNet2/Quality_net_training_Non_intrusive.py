@@ -39,13 +39,14 @@ matplotlib.use('Agg')
 
 random.seed(999)
 
-epoch = 15
+epoch = 10
 batch_size = 1
 forgetgate_bias = -3  # Please see tha paper for more details
 
 NUM_EandN = 8000
 NUM_Clean = 800
-os.environ["CUDA_VISIBLE_DEVICES"]="0"
+os.environ["CUDA_VISIBLE_DEVICES"] = "0"
+
 
 def frame_mse(y_true,
               y_pred):  # Customized loss function (frame-level loss, the second term of equation 1 in the paper)
@@ -139,8 +140,7 @@ def val_data_generator(file_list):
         yield noisy_LP, [pesq, pesq[0] * np.ones([1, noisy_LP.shape[1], 1])]
 
 
-#################################################################
-######################### Training data #########################
+# Training data
 
 wav_list = ListRead("list/train.list")
 
@@ -148,8 +148,7 @@ Train_list = wav_list[:200] + wav_list[250:2000]
 random.shuffle(Train_list)
 Num_train = len(Train_list)
 
-################################################################
-######################### Testing data #########################
+# Testing data
 Test_list = wav_list[200:250] + wav_list[2000:2250]
 Num_testdata = len(Test_list)
 
@@ -158,10 +157,9 @@ print('model building...')
 _input = Input(shape=(None, 257))
 
 activations2 = Bidirectional(
-    LSTM(100, return_sequences=True, dropout=0.3, recurrent_dropout=0, recurrent_activation = 'sigmoid',
- recurrent_constraint=max_norm(0.00001)),
+    LSTM(100, return_sequences=True, dropout=0.3, recurrent_dropout=0, recurrent_activation='sigmoid',
+         recurrent_constraint=max_norm(0.00001)),
     merge_mode='concat')(_input)
-#activations2=Bidirectional(LSTM(150, return_sequences=True, dropout=0.5, recurrent_dropout=0.5, recurrent_constraint=max_norm(0.00001)),merge_mode='sum')(activations1)
 
 activations3 = TimeDistributed(Dense(50))(activations2)
 activations3 = ELU()(activations3)
@@ -192,6 +190,7 @@ g2 = val_data_generator(Test_list)
 
 hist = model.fit_generator(g1, steps_per_epoch=Num_train,
                            verbose=1,
+                           epochs=epoch,
                            validation_data=g2,
                            validation_steps=Num_testdata,
                            max_queue_size=1,

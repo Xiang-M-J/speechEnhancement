@@ -11,9 +11,8 @@ from pesq import pesq
 from scipy.io import wavfile
 import ctypes
 
+
 # pDLL = ctypes.CDLL("pesq.dll")
-
-
 
 
 def ListRead(path):
@@ -41,12 +40,14 @@ def PESQ_compute_usename(clean_path, noisy_path):
     resultlist = [noisy_path, score]
     return resultlist
 
+
 def get_clean_list(noise_list):
     clean_list = []
     for noise in noise_list:
         type = noise.split('\\')[-1].split('.')[0].split('_')[:-1]
-        clean_list.append(os.path.join(r"D:\work\speechEnhancement\datasets\TIMIT\data\TRAIN", *type)+".WAV.wav")
+        clean_list.append(os.path.join(r"D:\work\speechEnhancement\datasets\TIMIT\data\TRAIN", *type) + ".WAV.wav")
     return clean_list
+
 
 def cal_fun(clean, noise):
     results = []
@@ -58,8 +59,6 @@ def cal_fun(clean, noise):
 def start_fun(clean, noise):
     for i in range(len(clean)):
         pesq_results.append(PESQ_compute_usename(clean[i], noise[i]))
-
-
 
 
 if __name__ == '__main__':
@@ -108,4 +107,4 @@ if __name__ == '__main__':
 
     with open(r"list/train.list", 'w') as f:
         for res in pesq_results:
-            f.write(str(res[0])  + "," + str(res[1]) + '\n')
+            f.write(str(res[0]) + "," + str(res[1]) + '\n')
