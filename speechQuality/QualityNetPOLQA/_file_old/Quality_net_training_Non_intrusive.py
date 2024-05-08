@@ -140,14 +140,14 @@ def val_data_generator(file_list):
 
 
 # Training data
-wav_list = ListRead("wav_polqa.list")
+wav_list = ListRead("../wav_polqa.list")
 
-Train_list = wav_list[:5000]
+Train_list = wav_list[:1000]
 random.shuffle(Train_list)
 Num_train = len(Train_list)
 
 # Testing data
-Test_list = wav_list[5000:6000]
+Test_list = wav_list[1000:1200]
 Num_testdata = len(Test_list)
 
 start_time = time.time()

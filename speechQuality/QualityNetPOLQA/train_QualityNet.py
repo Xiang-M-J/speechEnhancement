@@ -125,7 +125,6 @@ np.save('data/train_loss.npy', train_losses)
 np.save('data/val_loss.npy', val_losses)
 
 plt.plot(range(epoch), train_losses, val_losses)
-plt.show()
 plt.savefig('train_loss.png')
 
 model = torch.load('Quality-Net1.pt')
@@ -155,7 +154,7 @@ SRCC = scipy.stats.spearmanr(POLQA_True.T, POLQA_Predict.T)
 print('Spearman rank correlation coefficient= %f' % SRCC[0])
 
 # Plotting the scatter plot
-M = np.max([np.max(POLQA_Predict), 4.55])
+M = np.max([np.max(POLQA_Predict), 5])
 plt.figure(1)
 plt.scatter(POLQA_True, POLQA_Predict, s=14)
 plt.xlim([0, M])

@@ -1,0 +1,26 @@
+batch_size: 64
+beta1: 0.99
+beta2: 0.999
+delta_loss: 0.0001
+dropout: 0.1
+epochs: 50
+fft_size: 512
+gamma: 0.3
+hop_size: 256
+load_weight: false
+lr: 0.001
+model_name: QN20240508_173634
+model_type: ''
+optimizer_type: 3
+patience: 6
+random_seed: 34
+save: true
+save_model_epoch: 5
+scheduler_type: 1
+shuffle: true
+spilt_rate:
+- 0.8
+- 0.1
+- 0.1
+step_size: 10
+weight_decay: 0

@@ -7,12 +7,12 @@ from torch.utils.data import Dataset
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
 
-def Sp_and_phase(path, Noisy=False, compress=False):
+def Sp_and_phase(path, fft_size=512, hop_size=256, Noisy=False, compress=False):
     signal, rate = torchaudio.load(path)
     signal = signal / torch.max(torch.abs(signal))
 
-    F = torch.stft(signal, n_fft=512, hop_length=256, win_length=512, window=torch.hamming_window(512),
-                   return_complex=True)
+    F = torch.stft(signal, n_fft=fft_size, hop_length=hop_size, win_length=fft_size,
+                   window=torch.hamming_window(fft_size), return_complex=True)
     F = F.squeeze(0).t()
     Lp = torch.abs(F)
     if compress:
@@ -29,8 +29,10 @@ def Sp_and_phase(path, Noisy=False, compress=False):
 
 
 class DNSPOLQADataset(Dataset):
-    def __init__(self, wav_files: list[str]):
+    def __init__(self, wav_files: list[str], fft_size: int = 512, hop_size: int = 256, ):
         super(DNSPOLQADataset, self).__init__()
+        self.fft_size = fft_size
+        self.hop_size = hop_size
         self.wav = []
         self.polqa = []
         for wav_file in wav_files:

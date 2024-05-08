@@ -1,198 +1,56 @@
-import math
 import os
 import time
 import matplotlib.pyplot as plt
 import numpy as np
+import scipy
 import torch
 import torch.nn as nn
-from sklearn.metrics import classification_report, confusion_matrix
 from tensorboardX import SummaryWriter
 from torch.utils.data import dataloader
+from tqdm import tqdm
+from progressbar import ProgressBar, Percentage, Bar, Timer, ETA
 
+from model import QualityNet
+from trainer_utils import Args, EarlyStopping, Metric, load_dataset, plot_metric
+from utils import FrameMse
 
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
-
-import yaml
-
-
-class Args:
-    def __init__(self,
-                 epochs=10,
-                 lr=1e-3,
-                 model_name = "",
-                 batch_size=64,
-                 spilt_rate=None,
-                 weight_decay=0.2,
-                 patience=10,
-                 delta_loss = 1e-4,
-                 optimizer_type=2,
-                 beta1=0.99,
-                 beta2=0.999,
-                 random_seed=34,
-                 model_type="MTCN",
-                 save=True,
-                 scheduler_type=0,
-                 gamma=0.3,
-                 step_size=10,
-                 dropout=0.1,
-                 load_weight=False,
-                 ):
-        """
-        Args:
-            optimizer_type: 优化器种类(0: SGD, 1:Adam, 2:AdamW)
-            beta1: adam优化器参数
-            beta2: adam优化器参数
-            random_seed: 随机数种子
-            data_type: 数据类型
-            save: 是否保存模型和结果
-            scheduler_type: scheduler类型
-            gamma: LR scheduler参数
-            step_size: LR scheduler参数
-            warmup: Warm scheduler参数
-        """
-        if spilt_rate is None:
-            spilt_rate = [0.8, 0.1, 0.1]
-        self.model_name = model_name + time.strftime('%Y%m%d_%H%M%S', time.localtime())
-        self.epochs = epochs
-        self.lr = lr
-        self.batch_size = batch_size
-        self.spilt_rate = spilt_rate
-        self.weight_decay = weight_decay
-        self.optimizer_type = optimizer_type
-        
-        self.dropout = dropout
-        self.random_seed = random_seed
-        self.model_type = model_type
-        self.save = save
-        self.scheduler_type = scheduler_type
-        self.load_weight = load_weight
-
-        # 用于 Adam 优化器
-        self.beta1 = beta1
-        self.beta2 = beta2
-
-        # 用于 step scheduler
-        self.step_size = step_size
-        self.gamma = gamma
-
-        # 用于早停止
-        self.patience = patience
-        self.delta_loss = delta_loss
-        
-
-    def write(self, name="hyperparameter"):
-        with open("./config/" + name + ".yml", 'w', encoding='utf-8') as f:
-            yaml.dump(data=self.__dict__, stream=f, allow_unicode=True)
-
-    def load(self, path: str):
-        with open(path, 'r', encoding='utf-8') as f:
-            hyperparameter = yaml.load(f.read(), Loader=yaml.FullLoader)
-        for para in hyperparameter:
-            self.__setattr__(para, hyperparameter[para])
-
-    def items(self):
-        return self.__dict__
-
-    def string(self) -> str:
-        info = "parameter setting:\t"
-        for parameter in self.__dict__:
-            info += f"{parameter}: {self.__dict__[parameter]}\t"
-        info += '\n'
-        return info
-
-class Metric:
-    """
-    存储模型训练和测试时的指标
-    """
-
-    def __init__(self, mode="train"):
-        if mode == "train":
-            self.mode = "train"
-            self.train_loss = []
-            self.valid_loss = []
-            self.best_valid_loss = 0
-        elif mode == "test":
-            self.mode = "test"
-            self.test_loss = 0
-        else:
-            print("wrong mode !!! use default mode train")
-            self.mode = "train"
-            self.train_loss = []
-            self.valid_loss = []
-            self.best_valid_loss = 0
-
-    def items(self) -> dict:
-        """
-        返回各种指标的字典格式数据
-        Returns: dict
-
-        """
-        if self.mode == "train":
-            data = {"train_loss": self.train_loss, "valid_loss": self.valid_loss, 'best_valid_loss': self.best_valid_loss}
-        else:
-            data = {"test_loss": self.test_loss}
-        return data
-
-def check_dir():
-    """
-    创建models, results/images/, results/data 文件夹
-    """
-    if not os.path.exists("models"):
-        os.makedirs("models")
-    if not os.path.exists("results"):
-        os.makedirs("results")
-    if not os.path.exists("results/images"):
-        os.makedirs("results/images")
-    if not os.path.exists("results/data"):
-        os.makedirs("results/data")
-
-
-class EarlyStopping:
-    """Early stops the training if validation accuracy doesn't change after a given patience."""
-
-    def __init__(self, patience=5, delta_loss=1e-4):
-        """
-        Args:
-            patience (int): How long to wait after last time validation loss improved. Default: 5
-        """
-        self.patience = patience
-        self.patience_ = patience
-        self.delta_loss = delta_loss
-        self.last_val_loss = 0
-
-    def __call__(self, val_loss) -> bool:
-        if abs(self.last_val_loss - val_loss) < self.delta_loss:
-            self.patience -= 1
-        else:
-            self.patience = self.patience_
-        self.last_val_loss = val_loss
-        if self.patience == 1:
-            print(f"The validation loss has not changed in {self.patience_} iterations, stop train")
-            print(f"The final validation loss is {val_loss}")
-            return True
-        else:
-            return False
 
 
 class Trainer:
     """
     训练
     """
+
     def __init__(self, args: Args):
         self.args: Args = args
         self.optimizer_type = args.optimizer_type
-        self.model_type = args.model_type
-        self.best_path = f"models/" + args.model_name + "_best" + ".pt"  # 模型保存路径(max val acc)
-        self.final_path = f"models/" + args.model_name + ".pt"  # 模型保存路径(final)
-        self.result_path = f"results/"  # 结果保存路径（分为数据和图片）
-        self.save_path = f"models/" + args.model_name
+        self.model_path = f"models/{args.model_name}/"
+        self.best_model_path = self.model_path + "best.pt"  # 模型保存路径(max val acc)
+        self.final_model_path = self.model_path + "final.pt"  # 模型保存路径(final)
+        self.result_path = f"results/{args.model_name}/"  # 结果保存路径（分为数据和图片）
+        self.image_path = self.result_path + "images/"
+        self.data_path = self.result_path + "data/"
         self.batch_size = args.batch_size
         self.epochs = args.epochs
+        self.save_model_epoch = args.save_model_epoch
         self.lr = args.lr
         self.test_acc = []
-        check_dir()
         if args.save:
+            self.check_dir()
             self.writer = SummaryWriter("runs/" + time.strftime('%Y%m%d_%H%M%S', time.localtime()))
+
+    def check_dir(self):
+        """
+        创建文件夹
+        """
+
+        if not os.path.exists(self.model_path):
+            os.makedirs(self.model_path)
+        if not os.path.exists(self.image_path):
+            os.makedirs(self.image_path)
+        if not os.path.exists(self.data_path):
+            os.makedirs(self.data_path)
 
     def get_optimizer(self, parameter, lr):
         if self.optimizer_type == 0:
@@ -205,6 +63,8 @@ class Trainer:
         elif self.optimizer_type == 2:
             optimizer = torch.optim.AdamW(params=parameter, lr=lr, betas=(self.args.beta1, self.args.beta2),
                                           weight_decay=self.args.weight_decay)
+        elif self.optimizer_type == 3:
+            optimizer = torch.optim.RMSprop(parameter, lr=lr, weight_decay=self.args.weight_decay)
         else:
             raise NotImplementedError
         return optimizer
@@ -219,194 +79,262 @@ class Trainer:
         else:
             raise NotImplementedError
 
-    def train(self, model: nn.Module, loss_fn: nn.Module, train_dataset, valid_dataset, test_dataset):
-        
-        if self.args.save:
-            self.writer.add_text("模型名", self.args.model_name)
-            self.writer.add_text('超参数', self.args.string())
+    def get_loss_fn(self):
+        loss1 = nn.MSELoss()
+        loss2 = FrameMse()
+        loss1.to(device=device)
+        loss2.to(device=device)
+        return loss1, loss2
+
+    def train_step(self, model, x, y, loss1, loss2, optimizer):
+        y1 = y[0]
+        y2 = y[1]
+        frameS, avgS = model(x)
+        l1 = loss1(avgS.squeeze_(-1), y1)
+        l2 = loss2(frameS, y2)
+        loss = l1 + l2
+        optimizer.zero_grad()
+        loss.backward()
+        optimizer.step()
+        return loss.cpu().detach().numpy()
+
+    def predict(self, model, x, y, loss1, loss2):
+        """
+        Return loss, predict score, true score
+        """
+        y1 = y[0]
+        y2 = y[1]
+        frameS, avgS = model(x)
+        l1 = loss1(avgS.squeeze_(-1), y1)
+        l2 = loss2(frameS, y2)
+        loss = l1 + l2
+        return loss.cpu().detach().numpy(), avgS.cpu().detach().numpy(), y1.cpu().detach().numpy()
+
+    def train(self, model: nn.Module, train_dataset, valid_dataset):
+        print("begin train")
+        # 设置一些参数
+        best_valid_loss = 100.
         metric = Metric()
+
+        # 加载数据集
         train_loader = dataloader.DataLoader(
             dataset=train_dataset,
             batch_size=self.batch_size,
+            shuffle=self.args.shuffle
         )
         valid_loader = dataloader.DataLoader(
             dataset=valid_dataset,
             batch_size=self.batch_size,
+            shuffle=self.args.shuffle
         )
         train_num = len(train_dataset)
         valid_num = len(valid_dataset)
 
+        train_step = len(train_loader)
+        valid_step = len(valid_loader)
+
+        # 设置优化器、早停止和scheduler
         if self.args.load_weight:
             # 修改
             optimizer = self.get_optimizer(model.parameters(), self.lr)
-            
         else:
             optimizer = self.get_optimizer(model.parameters(), self.lr)
 
-        early_stop = EarlyStopping(patience=5, delta_loss=2e-4)
+        early_stop = EarlyStopping(patience=self.args.patience, delta_loss=self.args.delta_loss)
 
         scheduler = self.get_scheduler(optimizer, arg=self.args)
 
-        best_val_accuracy = 0
+        # 设置损失函数和模型
+        loss1, loss2 = self.get_loss_fn()
         model = model.to(device)
-        steps = 0  # 用于warmup
+
+        # 保存一些信息
+        if self.args.save:
+            self.writer.add_text("模型名", self.args.model_name)
+            self.writer.add_text('超参数', str(self.args))
+            try:
+                dummy_input = torch.rand(self.args.batch_size, 128, self.args.fft_size // 2 + 1).to(device)
+                self.writer.add_graph(model, dummy_input)
+            except RuntimeError as e:
+                print(e)
+
         plt.ion()
-        for epoch in range(self.epochs):
-            model.train()
+        start_time = time.time()
+
+        # 训练开始
+        for epoch in tqdm(range(self.epochs)):
             train_loss = 0
-            val_loss = 0
-            for step, (bx, by) in enumerate(train_loader):
-                bx, by = bx.to(device), by.to(device)
-                output = model(bx)
-                loss = loss_fn(output, by)
-                optimizer.zero_grad()
-                loss.backward()
-                optimizer.step()
-                train_loss += loss.data.item()
-                steps += 1
+            valid_loss = 0
+            model.train()
+            for batch_idx, (x, y) in (enumerate(train_loader)):
+                loss = self.train_step(model, x, y, loss1, loss2, optimizer)
+                train_loss += loss
 
             model.eval()
             with torch.no_grad():
-                for step, (vx, vy) in enumerate(valid_loader):
-                    vx, vy = vx.to(device), vy.to(device)
-                    output = model(vx)
-                    loss = loss_fn(output, vy)
-                    val_loss += loss.data.item()
+                for batch_idx, (x, y) in (enumerate(valid_loader)):
+                    loss, _, _ = self.predict(model, x, y, loss1, loss2)
+                    valid_loss += loss
 
-            if self.args.scheduler_type == 0:
-                pass
-            elif self.args.scheduler_type == 2:
-                scheduler.step(steps)
-            else:
+            if self.args.scheduler_type != 0:
                 scheduler.step()
 
-            metric.train_loss.append(train_loss / math.ceil((train_num / self.batch_size)))
-            metric.valid_loss.append(val_loss / math.ceil(valid_num / self.batch_size))
+            # 保存每个epoch的训练信息
+            metric.train_loss.append(train_loss / train_step)
+            metric.valid_loss.append(valid_loss / valid_step)
 
+            # 实时显示损失变化
             plt.clf()
-            plt.plot(metric.train_acc)
-            plt.plot(metric.val_acc)
-            plt.ylabel("accuracy(%)")
+            plt.plot(metric.train_loss)
+            plt.plot(metric.valid_loss)
+            plt.ylabel("loss")
             plt.xlabel("epoch")
-            plt.legend(["train acc", "val acc"])
-            plt.title("train accuracy and validation accuracy")
+            plt.legend(["train loss", "valid loss"])
+            plt.title("train loss and valid loss")
             plt.pause(0.02)
             plt.ioff()  # 关闭画图的窗口
 
             if self.args.save:
+                if (epoch + 1) % self.save_model_epoch == 0:
+                    print(f"save model to {self.model_path}" + f"{epoch}.pt")
+                    torch.save(model, self.model_path + f"{epoch}.pt")
                 self.writer.add_scalar('train loss', metric.train_loss[-1], epoch + 1)
-                self.writer.add_scalar('validation loss', metric.valid_loss[-1], epoch + 1)
+                self.writer.add_scalar('valid loss', metric.valid_loss[-1], epoch + 1)
+                self.writer.add_scalar('lr', optimizer.param_groups[0]['lr'], epoch + 1)
 
             print(
-                'Epoch :{}\t train Loss:{:.4f}\t train Accuracy:{:.3f}\t val Loss:{:.4f} \t val Accuracy:{:.3f}'.format(
-                    epoch + 1, metric.train_loss[-1], metric.train_acc[-1], metric.valid_loss[-1],
-                    metric.val_acc[-1]))
-            print(optimizer.param_groups[0]['lr'])
-            if metric.val_acc[-1] > best_val_accuracy:
-                print(f"val_accuracy improved from {best_val_accuracy :.3f} to {metric.val_acc[-1]:.3f}")
-                best_val_accuracy = metric.val_acc[-1]
-                metric.best_val_acc[0] = best_val_accuracy
-                metric.best_val_acc[1] = metric.train_acc[-1]
+                'Epoch :{}\t train Loss:{:.4f}\t val Loss:{:.4f}'.format(
+                    epoch + 1, metric.train_loss[-1], metric.valid_loss[-1]))
+
+            if metric.valid_loss[-1] < best_valid_loss:
+                print(f"valid loss decrease from {best_valid_loss :.3f} to {metric.valid_loss[-1]:.3f}")
+                best_valid_loss = metric.valid_loss[-1]
+                metric.best_valid_loss = best_valid_loss
                 if self.args.save:
-                    torch.save(model, self.best_path)
-                    print(f"saving model to {self.best_path}")
-            elif metric.val_acc[-1] == best_val_accuracy:
-                if metric.train_acc[-1] > metric.best_val_acc[1]:
-                    metric.best_val_acc[1] = metric.train_acc[-1]
-                    if self.args.save:
-                        torch.save(model, self.best_path)
+                    torch.save(model, self.best_model_path)
+                    print(f"saving model to {self.best_model_path}")
             else:
-                print(f"val_accuracy did not improve from {best_val_accuracy}")
-            
-            if early_stop(metric.val_loss[-1]):
+                print(f"validation loss did not decrease from {best_valid_loss}")
+
+            if early_stop(metric.valid_loss[-1]):
+                if self.args.save:
+                    torch.save(model, self.final_model_path)
+                    print(f"early stop..., saving model to {self.final_model_path}")
                 break
-            if metric.val_acc[-1] > 99.4:
-                self.test_acc.append(self.multi_test_step(model, test_dataset=test_dataset))
 
-            # model_save(model, epoch)
-
+        # 训练结束时需要进行的工作
+        end_time = time.time()
+        print('Train ran for %.2f minutes' % ((end_time - start_time) / 60.))
         if self.args.save:
-            torch.save(model, self.final_path)
-            print(f"save model(last): {self.final_path}")
-            plot(metric.item(), self.args.model_name, self.result_path)
-            np.save(self.result_path + "data/" + self.args.model_name + "_train_metric", metric.item())
-            self.writer.add_text("beat validation accuracy", f"{metric.best_val_acc}")
-            self.writer.add_text("parameter setting", self.args.addition())
-            self.writer.add_text("model name", model.name)
+            plt.clf()
+            torch.save(model, self.final_model_path)
+            print(f"save model(final): {self.final_model_path}")
+            np.save(os.path.join(self.data_path, "train_metric.npy"), metric.items())
+            fig = plot_metric({"train_loss": metric.train_loss, "valid_loss": metric.valid_loss},
+                              title="train and valid loss", result_path=self.image_path)
+            self.writer.add_figure("learn loss", fig)
+            self.writer.add_text("beat valid loss", f"{metric.best_valid_loss}")
+        return model
 
-            dummy_input = torch.rand(self.args.batch_size, self.args.feature_dim, self.args.seq_len).to(device)
-            mask = torch.rand(self.args.seq_len, self.args.seq_len).to(device)
-            if self.model_type in ["TIM", "LSTM", "TCN"]:
-                self.writer.add_graph(model, dummy_input)
-            else:
-                self.writer.add_graph(model, [dummy_input, mask])
-            self.logger.train(train_metric=metric)
-
-    def test_step(self, model_path, test_loader, loss_fn, test_num, metric, best=False):
+    def test_step(self, model: nn.Module, test_loader, test_num):
         """
         Args:
-            model_path: 模型路径
-
-        Returns:
-            metric fig
+            model: 模型
+            test_loader: 测试集 loader
+            test_num: 测试集样本数
         """
-        if not os.path.exists(model_path):
-            print(f"error! cannot find the model in {model_path}")
-            return
-        print(f"load model: {model_path}")
-        model = torch.load(model_path)
+
+        model = model.to(device=device)
         model.eval()
-        test_correct = 0
-        test_loss = 0
-        y_pred = torch.zeros(test_num)
-        y_true = torch.zeros(test_num)
-        for step, (vx, vy) in enumerate(test_loader):
-            vx, vy = vx.to(device), vy.to(device)
-            with torch.no_grad():
-                output = model(vx)
-                y_pred[step * self.batch_size: step * self.batch_size + vy.shape[0]] = torch.max(output.data, 1)[1]
-                y_true[step * self.batch_size: step * self.batch_size + vy.shape[0]] = torch.max(vy.data, 1)[1]
-                loss = loss_fn(output, vy)
-                test_loss += loss.data.item()
-        conf_matrix = confusion_matrix(y_true, y_pred, labels=np.arange(self.args.num_class))
-
-        
-        test_acc = float((test_correct * 100) / test_num)
-        test_loss = test_loss / math.ceil(test_num / self.batch_size)
-        metric.confusion_matrix.append(conf_matrix)
-        metric.test_loss.append(test_loss)
-        
-        return metric
-
-    def test(self, test_dataset, model_path: str = None):
         metric = Metric(mode="test")
-        metric.test_loss = 0
+        test_step = len(test_loader)
+
+        POLQA_Predict = np.zeros([test_num, ])
+        POLQA_True = np.zeros([test_num, ])
+        idx = 0
+        loss1, loss2 = self.get_loss_fn()
+        test_loss = 0
+        with torch.no_grad():
+            for batch_idx, (x, y) in tqdm(enumerate(test_loader)):
+                batch = x.shape[0]
+                loss, est_polqa, true_polqa = self.predict(model, x, y, loss1, loss2)
+                test_loss += loss
+                POLQA_Predict[idx: idx + batch] = est_polqa
+                POLQA_True[idx: idx + batch] = true_polqa
+                idx += batch
+
+        metric.test_loss = test_loss / test_step
+        print("Test loss: {:.4f}".format(metric.test_loss))
+        metric.mse = np.mean((POLQA_True - POLQA_Predict) ** 2)
+        print('Test error= %f' % metric.mse)
+        metric.lcc = np.corrcoef(POLQA_True, POLQA_Predict)
+        print('Linear correlation coefficient= %f' % float(metric.lcc[0][1]))
+
+        metric.srcc = scipy.stats.spearmanr(POLQA_True.T, POLQA_Predict.T)
+        print('Spearman rank correlation coefficient= %f' % metric.srcc[0])
+
+        if self.args.save:
+            M = np.max([np.max(POLQA_Predict), 5])
+            plt.clf()
+            fig = plt.figure(1)
+            plt.scatter(POLQA_True, POLQA_Predict, s=14)
+            plt.xlim([0, M])
+            plt.ylim([0, M])
+            plt.xlabel('True PESQ')
+            plt.ylabel('Predicted PESQ')
+            plt.title('LCC= %f, SRCC= %f, MSE= %f' % (float(metric.lcc[0][1]), metric.srcc[0], metric.mse))
+            plt.savefig(self.image_path + 'Scatter_plot.png', dpi=300)
+            self.writer.add_text("test metric", str(metric))
+            self.writer.add_figure("predict score", fig)
+            np.save(self.data_path + "test_metric.npy", metric.items())
+
+    def test(self, test_dataset, model: nn.Module = None, model_path: str = None):
+
         test_loader = dataloader.DataLoader(
             dataset=test_dataset,
             batch_size=self.batch_size,
         )
-        
+
         test_num = len(test_dataset)
-        if model_path is None:
-            model_path = self.final_path
-            
-            self.test_step(model_path, test_loader, loss_fn, test_num, metric)
-            
-            print("{} final test Loss:{:.4f} test Accuracy:{:.3f}".format(
-                self.args.model_name, metric.test_loss[0], metric.test_acc[0]))
-
-            if self.args.save:
-                self.writer.add_text("test loss(final)", str(metric.test_loss[0]))
-                self.writer.add_text("classification report(final)", metric.report[0])
-                self.writer.add_text("test loss(best)", str(metric.test_loss[1]))
-                self.writer.add_text("classification report(best)", metric.report[1])
-                self.logger.test(test_metric=metric)
-                np.save(self.result_path + "data/" + self.args.model_name + "_test_metric.npy", metric.item())
+        start_time = time.time()
+        if model is not None:
+            self.test_step(model, test_loader, test_num)
+        elif model_path is None:
+            model_path = self.final_model_path
+            assert os.path.exists(model_path)
+            print(f"load model: {model_path}")
+            model = torch.load(model_path)
+            self.test_step(model, test_loader, test_num)
+        elif model_path is not None:
+            assert os.path.exists(model_path)
+            print(f"load model: {model_path}")
+            model = torch.load(model_path)
+            self.test_step(model, test_loader, test_num)
         else:
-            metric = self.test_step(model_path, test_loader, loss_fn, test_num, metric)
-            print("{} test Loss:{:.4f} test Accuracy:{:.3f}".format(
-                self.args.model_name, metric.test_loss[0], metric.test_acc[0]))
+            raise "model_path and model can not be none simultaneously"
 
-            if self.args.save:
-                self.writer.add_text("test loss(final)", str(metric.test_loss[0]))
-                np.save(self.result_path + "data/" + self.args.model_name + "_test_metric.npy", metric.item())
+        end_time = time.time()
+        print('Test ran for %.2f minutes' % ((end_time - start_time) / 60.))
+
+
+if __name__ == '__main__':
+    arg = Args("QN")
+    arg.epochs = 50
+    arg.batch_size = 64
+    arg.save = True
+    arg.write("QN_1")
+    forget_gate_bias = -3
+    trainer = Trainer(arg)
+    train_dataset, valid_dataset, test_dataset = load_dataset("wav_polqa.list", arg.spilt_rate, arg.fft_size, arg.hop_size)
+    model = QualityNet()
+    W = dict(model.lstm.named_parameters())
+    bias_init = np.concatenate((np.zeros([100]), forget_gate_bias * np.ones([100]), np.zeros([200])))
+
+    for name, wight in model.lstm.named_parameters():
+        if "bias" in name:
+            W[name] = torch.tensor(bias_init, dtype=torch.float32)
+
+    model.lstm.load_state_dict(W)
+    model = trainer.train(model, train_dataset=train_dataset, valid_dataset=valid_dataset)
+
+    trainer.test(test_dataset=test_dataset, model=model)
