@@ -34,7 +34,8 @@ def load_dataset(path, spilt_rate, fft_size=512, hop_size=256):
 
 class Args:
     def __init__(self,
-                 model_name,
+                 model_type,
+                 model_name=None,
                  epochs=35,
                  lr=1e-3,
                  fft_size=512,
@@ -42,37 +43,42 @@ class Args:
                  batch_size=64,
                  spilt_rate=None,
                  weight_decay=0,
-                 patience=6,
-                 delta_loss=1e-4,
+                 patience=5,
+                 delta_loss=1e-3,
                  optimizer_type=3,
                  shuffle=True,
                  beta1=0.99,
                  beta2=0.999,
                  random_seed=34,
-                 model_type="",
                  save=True,
                  save_model_epoch=5,
                  scheduler_type=1,
                  gamma=0.3,
                  step_size=10,
                  dropout=0.1,
+                 score_step=0.5,
                  load_weight=False,
                  ):
         """
         Args:
+            epochs: number of epochs: 35
+            lr: learning rate Default: 1e-3
             optimizer_type: 优化器类别(0: SGD, 1:Adam, 2:AdamW, 3: RMSp)
-            scheduler_type: 计划器类别(0: None, 1: StepLR, 2: CosineAnnealingLR)
+            scheduler_type: 计划器类别(0: None, 1: StepLR, 2: CosineAnnealingLR) Default: 1
             beta1: adam优化器参数
             beta2: adam优化器参数
             random_seed: 随机数种子
             save: 是否保存模型和结果
             scheduler_type: scheduler类型
             gamma: LR scheduler参数
-            step_size: LR scheduler参数
-            shuffle: 是否打乱数据 Default True
+            step_size: LR scheduler参数  Default: 5
+            shuffle: 是否打乱数据 Default: True
+            score_step: 分数分布区间
         """
 
         # 基础参数
+        if model_name is None:
+            model_name = model_type
         self.model_name = model_name + time.strftime('%Y%m%d_%H%M%S', time.localtime())
         self.epochs = epochs
         self.dropout = dropout
@@ -82,6 +88,8 @@ class Args:
         self.save_model_epoch = save_model_epoch
         self.scheduler_type = scheduler_type
         self.load_weight = load_weight
+
+        self.score_step = score_step
 
         # 用于数据集
         if spilt_rate is None:
@@ -135,24 +143,34 @@ class Metric:
     存储模型训练和测试时的指标
     """
 
-    def __init__(self, mode="train"):
+    def __init__(self, mode="train", with_acc=False):
         if mode == "train":
             self.mode = "train"
             self.train_loss = []
             self.valid_loss = []
             self.best_valid_loss = 100.
+            if with_acc:
+                self.train_acc = []
+                self.valid_acc = []
+                self.best_valid_acc = 0.
         elif mode == "test":
             self.mode = "test"
             self.test_loss = 0
             self.mse = 0.
             self.lcc = None
             self.srcc = None
+            if with_acc:
+                self.test_acc = 0
         else:
             print("wrong mode !!! use default mode train")
             self.mode = "train"
             self.train_loss = []
             self.valid_loss = []
             self.best_valid_loss = 0
+            if with_acc:
+                self.train_acc = []
+                self.valid_acc = []
+                self.best_valid_acc = 0.
 
     def items(self) -> dict:
         """
@@ -187,22 +205,30 @@ class EarlyStopping:
             patience (int): 可以容忍的次数
         """
         self.patience = patience
+        self.patience2 = patience
         self.patience_ = patience
         self.delta_loss = delta_loss
         self.last_val_loss = 100.0
 
     def __call__(self, val_loss) -> bool:
-        if abs(self.last_val_loss - val_loss) < self.delta_loss or val_loss > self.last_val_loss + self.delta_loss:
+        if abs(self.last_val_loss - val_loss) < self.delta_loss:
             self.patience -= 1
         else:
             self.patience = self.patience_
+        if val_loss > self.last_val_loss:
+            self.patience2 -= 1
+        else:
+            self.patience2 = self.patience_
         self.last_val_loss = val_loss
+        if self.patience2 == 1:
+            print(f"The validation loss continual increase in {self.patience_} iterations, stop train")
+            print(f"The final validation loss is {val_loss}")
+            return True
         if self.patience == 1:
             print(f"The validation loss has not changed in {self.patience_} iterations, stop train")
             print(f"The final validation loss is {val_loss}")
             return True
-        else:
-            return False
+        return False
 
 
 def plot_metric(metric: dict, title: str = '', xlabel: str = 'epoch', ylabel: str = 'loss', legend=None,

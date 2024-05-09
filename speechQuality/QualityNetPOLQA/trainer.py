@@ -1,5 +1,7 @@
 import os
 import time
+import random
+
 import matplotlib.pyplot as plt
 import numpy as np
 import scipy
@@ -8,7 +10,6 @@ import torch.nn as nn
 from tensorboardX import SummaryWriter
 from torch.utils.data import dataloader
 from tqdm import tqdm
-from progressbar import ProgressBar, Percentage, Bar, Timer, ETA
 
 from model import QualityNet
 from trainer_utils import Args, EarlyStopping, Metric, load_dataset, plot_metric
@@ -162,79 +163,95 @@ class Trainer:
         start_time = time.time()
 
         # 训练开始
-        for epoch in tqdm(range(self.epochs)):
-            train_loss = 0
-            valid_loss = 0
-            model.train()
-            for batch_idx, (x, y) in (enumerate(train_loader)):
-                loss = self.train_step(model, x, y, loss1, loss2, optimizer)
-                train_loss += loss
+        try:
+            for epoch in tqdm(range(self.epochs)):
+                train_loss = 0
+                valid_loss = 0
+                model.train()
+                for batch_idx, (x, y) in (enumerate(train_loader)):
+                    loss = self.train_step(model, x, y, loss1, loss2, optimizer)
+                    train_loss += loss
 
-            model.eval()
-            with torch.no_grad():
-                for batch_idx, (x, y) in (enumerate(valid_loader)):
-                    loss, _, _ = self.predict(model, x, y, loss1, loss2)
-                    valid_loss += loss
+                model.eval()
+                with torch.no_grad():
+                    for batch_idx, (x, y) in (enumerate(valid_loader)):
+                        loss, _, _ = self.predict(model, x, y, loss1, loss2)
+                        valid_loss += loss
 
-            if self.args.scheduler_type != 0:
-                scheduler.step()
+                if self.args.scheduler_type != 0:
+                    scheduler.step()
 
-            # 保存每个epoch的训练信息
-            metric.train_loss.append(train_loss / train_step)
-            metric.valid_loss.append(valid_loss / valid_step)
+                # 保存每个epoch的训练信息
+                metric.train_loss.append(train_loss / train_step)
+                metric.valid_loss.append(valid_loss / valid_step)
 
-            # 实时显示损失变化
-            plt.clf()
-            plt.plot(metric.train_loss)
-            plt.plot(metric.valid_loss)
-            plt.ylabel("loss")
-            plt.xlabel("epoch")
-            plt.legend(["train loss", "valid loss"])
-            plt.title("train loss and valid loss")
-            plt.pause(0.02)
-            plt.ioff()  # 关闭画图的窗口
+                # 实时显示损失变化
+                plt.clf()
+                plt.plot(metric.train_loss)
+                plt.plot(metric.valid_loss)
+                plt.ylabel("loss")
+                plt.xlabel("epoch")
+                plt.legend(["train loss", "valid loss"])
+                plt.title("train loss and valid loss")
+                plt.pause(0.02)
+                plt.ioff()  # 关闭画图的窗口
 
+                if self.args.save:
+                    if (epoch + 1) % self.save_model_epoch == 0:
+                        print(f"save model to {self.model_path}" + f"{epoch}.pt")
+                        torch.save(model, self.model_path + f"{epoch}.pt")
+                    self.writer.add_scalar('train loss', metric.train_loss[-1], epoch + 1)
+                    self.writer.add_scalar('valid loss', metric.valid_loss[-1], epoch + 1)
+                    self.writer.add_scalar('lr', optimizer.param_groups[0]['lr'], epoch + 1)
+                    np.save(os.path.join(self.data_path, "train_metric.npy"), metric.items())
+                print(
+                    'Epoch :{}\t train Loss:{:.4f}\t val Loss:{:.4f}'.format(
+                        epoch + 1, metric.train_loss[-1], metric.valid_loss[-1]))
+
+                if metric.valid_loss[-1] < best_valid_loss:
+                    print(f"valid loss decrease from {best_valid_loss :.3f} to {metric.valid_loss[-1]:.3f}")
+                    best_valid_loss = metric.valid_loss[-1]
+                    metric.best_valid_loss = best_valid_loss
+                    if self.args.save:
+                        torch.save(model, self.best_model_path)
+                        print(f"saving model to {self.best_model_path}")
+                else:
+                    print(f"validation loss did not decrease from {best_valid_loss}")
+
+                if early_stop(metric.valid_loss[-1]):
+                    if self.args.save:
+                        torch.save(model, self.final_model_path)
+                        print(f"early stop..., saving model to {self.final_model_path}")
+                    break
+
+            # 训练结束时需要进行的工作
+            end_time = time.time()
+            print('Train ran for %.2f minutes' % ((end_time - start_time) / 60.))
             if self.args.save:
-                if (epoch + 1) % self.save_model_epoch == 0:
-                    print(f"save model to {self.model_path}" + f"{epoch}.pt")
-                    torch.save(model, self.model_path + f"{epoch}.pt")
-                self.writer.add_scalar('train loss', metric.train_loss[-1], epoch + 1)
-                self.writer.add_scalar('valid loss', metric.valid_loss[-1], epoch + 1)
-                self.writer.add_scalar('lr', optimizer.param_groups[0]['lr'], epoch + 1)
-
-            print(
-                'Epoch :{}\t train Loss:{:.4f}\t val Loss:{:.4f}'.format(
-                    epoch + 1, metric.train_loss[-1], metric.valid_loss[-1]))
-
-            if metric.valid_loss[-1] < best_valid_loss:
-                print(f"valid loss decrease from {best_valid_loss :.3f} to {metric.valid_loss[-1]:.3f}")
-                best_valid_loss = metric.valid_loss[-1]
-                metric.best_valid_loss = best_valid_loss
-                if self.args.save:
-                    torch.save(model, self.best_model_path)
-                    print(f"saving model to {self.best_model_path}")
-            else:
-                print(f"validation loss did not decrease from {best_valid_loss}")
-
-            if early_stop(metric.valid_loss[-1]):
-                if self.args.save:
-                    torch.save(model, self.final_model_path)
-                    print(f"early stop..., saving model to {self.final_model_path}")
-                break
-
-        # 训练结束时需要进行的工作
-        end_time = time.time()
-        print('Train ran for %.2f minutes' % ((end_time - start_time) / 60.))
-        if self.args.save:
-            plt.clf()
-            torch.save(model, self.final_model_path)
-            print(f"save model(final): {self.final_model_path}")
-            np.save(os.path.join(self.data_path, "train_metric.npy"), metric.items())
-            fig = plot_metric({"train_loss": metric.train_loss, "valid_loss": metric.valid_loss},
-                              title="train and valid loss", result_path=self.image_path)
-            self.writer.add_figure("learn loss", fig)
-            self.writer.add_text("beat valid loss", f"{metric.best_valid_loss}")
-        return model
+                plt.clf()
+                torch.save(model, self.final_model_path)
+                print(f"save model(final): {self.final_model_path}")
+                np.save(os.path.join(self.data_path, "train_metric.npy"), metric.items())
+                fig = plot_metric({"train_loss": metric.train_loss, "valid_loss": metric.valid_loss},
+                                  title="train and valid loss", result_path=self.image_path)
+                self.writer.add_figure("learn loss", fig)
+                self.writer.add_text("beat valid loss", f"{metric.best_valid_loss}")
+            return model
+        except KeyboardInterrupt as e:
+            print("正在退出")
+            # 训练结束时需要进行的工作
+            end_time = time.time()
+            print('Train ran for %.2f minutes' % ((end_time - start_time) / 60.))
+            if self.args.save:
+                plt.clf()
+                torch.save(model, self.final_model_path)
+                print(f"save model(final): {self.final_model_path}")
+                np.save(os.path.join(self.data_path, "train_metric.npy"), metric.items())
+                fig = plot_metric({"train_loss": metric.train_loss, "valid_loss": metric.valid_loss},
+                                  title="train and valid loss", result_path=self.image_path)
+                self.writer.add_figure("learn loss", fig)
+                self.writer.add_text("beat valid loss", f"{metric.best_valid_loss}")
+            return model
 
     def test_step(self, model: nn.Module, test_loader, test_num):
         """
@@ -316,25 +333,3 @@ class Trainer:
         end_time = time.time()
         print('Test ran for %.2f minutes' % ((end_time - start_time) / 60.))
 
-
-if __name__ == '__main__':
-    arg = Args("QN")
-    arg.epochs = 50
-    arg.batch_size = 64
-    arg.save = True
-    arg.write("QN_1")
-    forget_gate_bias = -3
-    trainer = Trainer(arg)
-    train_dataset, valid_dataset, test_dataset = load_dataset("wav_polqa.list", arg.spilt_rate, arg.fft_size, arg.hop_size)
-    model = QualityNet()
-    W = dict(model.lstm.named_parameters())
-    bias_init = np.concatenate((np.zeros([100]), forget_gate_bias * np.ones([100]), np.zeros([200])))
-
-    for name, wight in model.lstm.named_parameters():
-        if "bias" in name:
-            W[name] = torch.tensor(bias_init, dtype=torch.float32)
-
-    model.lstm.load_state_dict(W)
-    model = trainer.train(model, train_dataset=train_dataset, valid_dataset=valid_dataset)
-
-    trainer.test(test_dataset=test_dataset, model=model)

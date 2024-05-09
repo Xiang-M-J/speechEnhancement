@@ -8,6 +8,8 @@ CNN + 注意力（受限的的注意力，Restricted Self-Attention） + 时间�
 
 在训练语音增强模型时，语音增强模型生成增强后的语音，Quality-Net 作为鉴别器判断语音质量（GAN网络）
 
+将 MSE 损失换成交叉熵损失，具体思路是将 1.0-5.0 看成若干个类别，如每隔 0.2 进行一个分类
+
 
 
 ## 实验发现
@@ -401,3 +403,49 @@ SRCC：[scipy.stats.spearmanr — SciPy v0.14.0 Reference Guide](https://docs.sc
 
 
 
+### NIMA: Neural Image Assessment
+
+图像评分模型，使用基本的卷积网络（VGG16、Inception-V2 和 MobileNet）提取特征，通过全连接层，再经过 softmax 得到分数落在的区间的概率，最终分数可以直接取区间乘以区间概率，可以使用交叉熵损失，但是更好的选择为EMD损失，EMD 定义为将一个分布搬移到另一个分布的最小代价，即
+$$
+EMD\left( {p,\hat p} \right) = {\left( {{1 \over N}\sum\limits_{k = 1}^N {{{\left| {CD{F_p}(k) - CD{F_{\hat p}}(k)} \right|}^r}} } \right)^{1/r}}
+$$
+其中 $CDF_p(k)$ 为累积分布函数 $\sum_{i=1}^k p_{s_i}$，注意  $\sum_{i=1}^N p_{s_i} = \sum_{i=1}^N \hat p_{s_i} = 1$，r = 2，N 为分类数。
+
+代码为
+
+```python
+class EDMLoss(nn.Module):
+    def __init__(self):
+        super(EDMLoss, self).__init__()
+
+    def forward(self, p_target: torch.Tensor, p_estimate: torch.Tensor):
+        assert p_target.shape == p_estimate.shape
+        # cdf for values [1, 2, ..., 10]
+        cdf_target = torch.cumsum(p_target, dim=1)
+        # cdf for values [1, 2, ..., 10]
+        cdf_estimate = torch.cumsum(p_estimate, dim=1)
+        cdf_diff = cdf_estimate - cdf_target
+        samplewise_emd = torch.sqrt(torch.mean(torch.pow(torch.abs(cdf_diff), 2)))
+        return samplewise_emd.mean()
+```
+
+
+
+### A TIME-RESTRICTED SELF-ATTENTION LAYER FOR ASR
+
+
+在 TDNN 中加入注意力，将 TDNN + LSTM 架构中的 LSTM 替换为注意力层，这里使用的注意力为 TIME-RESTRICTED 自注意力
+
+
+考虑单头的情况，将 $x_t$ 转为查询向量 $q_t$、键向量 $k_t$ 和值向量 $v_t$，输出 $y_t$ 为
+
+$$
+{y_t} = \sum\limits_{\tau  = t - L}^{t + R} {{c_t}(\tau ){v_t}}
+$$
+
+其中 $c_t(\tau) = \exp(q_t\cdot k_{\tau}) / Z_t$，$Z_t$ 用来保证 $\sum_{\tau} c_t(\tau) = 1$。
+
+
+为了了解 key 和 query 的相对关系，需要加上位置编码，给 x 加上一个向量，该向量除了位置 $\tau + L - t$ 为 1，其余全部为0。
+
+单头的表达能力可能不足，所以需要扩展到多头。

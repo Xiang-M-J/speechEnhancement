@@ -9,7 +9,7 @@ gamma: 0.3
 hop_size: 256
 load_weight: false
 lr: 0.001
-model_name: QN20240508_173634
+model_name: QN20240508_174129
 model_type: ''
 optimizer_type: 3
 patience: 6

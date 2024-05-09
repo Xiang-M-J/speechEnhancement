@@ -60,6 +60,26 @@ class FrameMse(nn.Module):
         return torch.mean((10 ** (true_pesq - 4.5)) * torch.mean((input - target) ** 2, dim=1))
 
 
+class EDMLoss(nn.Module):
+    def __init__(self):
+        super(EDMLoss, self).__init__()
+
+    def forward(self, p_target: torch.Tensor, p_estimate: torch.Tensor):
+        """
+        p_target: [B, N]
+        p_estimate: [B, N]
+        B 为批次大小，N 为类别数
+        """
+        assert p_target.shape == p_estimate.shape
+        # cdf for values [1, 2, ..., 10]
+        cdf_target = torch.cumsum(p_target, dim=1)
+        # cdf for values [1, 2, ..., 10]
+        cdf_estimate = torch.cumsum(p_estimate, dim=1)
+        cdf_diff = cdf_estimate - cdf_target
+        samplewise_emd = torch.sqrt(torch.mean(torch.pow(torch.abs(cdf_diff), 2)))
+        return samplewise_emd.mean()
+
+
 def ListRead(path):
     with open(path, 'r') as f:
         file_list = f.read().splitlines()
