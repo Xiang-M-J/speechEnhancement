@@ -55,14 +55,16 @@ class Args:
                  scheduler_type=1,
                  gamma=0.3,
                  step_size=10,
-                 dropout=0.1,
+                 dropout=0.3,
                  score_step=0.5,
                  load_weight=False,
+                 enableFrame=True,
                  ):
         """
         Args:
             epochs: number of epochs: 35
             lr: learning rate Default: 1e-3
+            dropout: dropout rate Default: 0.3
             optimizer_type: 优化器类别(0: SGD, 1:Adam, 2:AdamW, 3: RMSp)
             scheduler_type: 计划器类别(0: None, 1: StepLR, 2: CosineAnnealingLR) Default: 1
             beta1: adam优化器参数
@@ -73,7 +75,8 @@ class Args:
             gamma: LR scheduler参数
             step_size: LR scheduler参数  Default: 5
             shuffle: 是否打乱数据 Default: True
-            score_step: 分数分布区间
+            score_step: 分数分布步长
+            enableFrame: 是否允许 Frame loss Default: True
         """
 
         # 基础参数
@@ -88,6 +91,8 @@ class Args:
         self.save_model_epoch = save_model_epoch
         self.scheduler_type = scheduler_type
         self.load_weight = load_weight
+
+        self.enableFrame = enableFrame
 
         self.score_step = score_step
 
@@ -198,7 +203,7 @@ class Metric:
 class EarlyStopping:
     """Early stops the training if validation accuracy doesn't change after a given patience."""
 
-    def __init__(self, patience=5, delta_loss=1e-4):
+    def __init__(self, patience=5, delta_loss=1e-3):
         """
         当损失变动小于 delta_loss 或者上升超过 delta_loss 超过 5 次，停止训练
         Args:
@@ -220,11 +225,11 @@ class EarlyStopping:
         else:
             self.patience2 = self.patience_
         self.last_val_loss = val_loss
-        if self.patience2 == 1:
-            print(f"The validation loss continual increase in {self.patience_} iterations, stop train")
+        if self.patience2 == 0:
+            print(f"The validation loss continue increase in {self.patience_} iterations, stop train")
             print(f"The final validation loss is {val_loss}")
             return True
-        if self.patience == 1:
+        if self.patience == 0:
             print(f"The validation loss has not changed in {self.patience_} iterations, stop train")
             print(f"The final validation loss is {val_loss}")
             return True

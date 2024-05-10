@@ -11,7 +11,7 @@ from tensorboardX import SummaryWriter
 from torch.utils.data import dataloader
 from tqdm import tqdm
 
-from model import QualityNet
+from models import QualityNet
 from trainer_utils import Args, EarlyStopping, Metric, load_dataset, plot_metric
 from utils import FrameMse
 
@@ -82,7 +82,7 @@ class Trainer:
 
     def get_loss_fn(self):
         loss1 = nn.MSELoss()
-        loss2 = FrameMse()
+        loss2 = FrameMse(self.args.enableFrame)
         loss1.to(device=device)
         loss2.to(device=device)
         return loss1, loss2
@@ -164,19 +164,26 @@ class Trainer:
 
         # 训练开始
         try:
-            for epoch in tqdm(range(self.epochs)):
+            for epoch in tqdm(range(self.epochs), ncols=100):
                 train_loss = 0
                 valid_loss = 0
                 model.train()
-                for batch_idx, (x, y) in (enumerate(train_loader)):
+                loop_train = tqdm(enumerate(train_loader), leave=False)
+                for batch_idx, (x, y) in loop_train:
                     loss = self.train_step(model, x, y, loss1, loss2, optimizer)
                     train_loss += loss
 
+                    loop_train.set_description_str(f'Training [{epoch + 1}/{self.epochs}]')
+                    loop_train.set_postfix_str("step: {}/{} loss: {:.4f}".format(batch_idx, train_step, loss))
+
                 model.eval()
                 with torch.no_grad():
-                    for batch_idx, (x, y) in (enumerate(valid_loader)):
+                    loop_valid = tqdm(enumerate(valid_loader), leave=False)
+                    for batch_idx, (x, y) in loop_valid:
                         loss, _, _ = self.predict(model, x, y, loss1, loss2)
                         valid_loss += loss
+                        loop_train.set_description_str(f'Validating [{epoch + 1}/{self.epochs}]')
+                        loop_train.set_postfix_str("step: {}/{} loss: {:.4f}".format(batch_idx, valid_step, loss))
 
                 if self.args.scheduler_type != 0:
                     scheduler.step()
@@ -192,65 +199,72 @@ class Trainer:
                 plt.ylabel("loss")
                 plt.xlabel("epoch")
                 plt.legend(["train loss", "valid loss"])
-                plt.title("train loss and valid loss")
+                plt.title(f"{self.args.model_type} loss")
                 plt.pause(0.02)
                 plt.ioff()  # 关闭画图的窗口
 
                 if self.args.save:
                     if (epoch + 1) % self.save_model_epoch == 0:
-                        print(f"save model to {self.model_path}" + f"{epoch}.pt")
+                        tqdm.write(f"save model to {self.model_path}" + f"{epoch}.pt")
                         torch.save(model, self.model_path + f"{epoch}.pt")
                     self.writer.add_scalar('train loss', metric.train_loss[-1], epoch + 1)
                     self.writer.add_scalar('valid loss', metric.valid_loss[-1], epoch + 1)
                     self.writer.add_scalar('lr', optimizer.param_groups[0]['lr'], epoch + 1)
                     np.save(os.path.join(self.data_path, "train_metric.npy"), metric.items())
-                print(
-                    'Epoch :{}\t train Loss:{:.4f}\t val Loss:{:.4f}'.format(
+                tqdm.write(
+                    'Epoch {}:  train Loss:{:.4f}\t val Loss:{:.4f}'.format(
                         epoch + 1, metric.train_loss[-1], metric.valid_loss[-1]))
 
                 if metric.valid_loss[-1] < best_valid_loss:
-                    print(f"valid loss decrease from {best_valid_loss :.3f} to {metric.valid_loss[-1]:.3f}")
+                    tqdm.write(f"valid loss decrease from {best_valid_loss :.3f} to {metric.valid_loss[-1]:.3f}")
                     best_valid_loss = metric.valid_loss[-1]
                     metric.best_valid_loss = best_valid_loss
                     if self.args.save:
                         torch.save(model, self.best_model_path)
-                        print(f"saving model to {self.best_model_path}")
+                        tqdm.write(f"saving model to {self.best_model_path}")
                 else:
-                    print(f"validation loss did not decrease from {best_valid_loss}")
+                    tqdm.write(f"validation loss did not decrease from {best_valid_loss}")
 
                 if early_stop(metric.valid_loss[-1]):
                     if self.args.save:
                         torch.save(model, self.final_model_path)
-                        print(f"early stop..., saving model to {self.final_model_path}")
+                        tqdm.write(f"early stop..., saving model to {self.final_model_path}")
                     break
-
             # 训练结束时需要进行的工作
             end_time = time.time()
-            print('Train ran for %.2f minutes' % ((end_time - start_time) / 60.))
+            tqdm.write('Train ran for %.2f minutes' % ((end_time - start_time) / 60.))
+            with open("log.txt", mode='a', encoding="utf-8") as f:
+                f.write(self.args.model_name + f"\t{time.strftime('%Y-%m-%d %H:%M:%S', time.localtime())}\t" + "{:.2f}".format((end_time - start_time) / 60.) + "\n")
+                f.write("train loss: {:.4f}, valid loss: {:.4f} \n".format(metric.train_loss[-1], metric.valid_loss[-1]))
             if self.args.save:
                 plt.clf()
                 torch.save(model, self.final_model_path)
-                print(f"save model(final): {self.final_model_path}")
+                tqdm.write(f"save model(final): {self.final_model_path}")
                 np.save(os.path.join(self.data_path, "train_metric.npy"), metric.items())
                 fig = plot_metric({"train_loss": metric.train_loss, "valid_loss": metric.valid_loss},
                                   title="train and valid loss", result_path=self.image_path)
                 self.writer.add_figure("learn loss", fig)
                 self.writer.add_text("beat valid loss", f"{metric.best_valid_loss}")
+                self.writer.add_text("duration", "{:2f}".format((end_time - start_time) / 60.))
             return model
         except KeyboardInterrupt as e:
-            print("正在退出")
+            tqdm.write("正在退出")
             # 训练结束时需要进行的工作
             end_time = time.time()
-            print('Train ran for %.2f minutes' % ((end_time - start_time) / 60.))
+            tqdm.write('Train ran for %.2f minutes' % ((end_time - start_time) / 60.))
+            with open("log.txt", mode='a', encoding="utf-8") as f:
+                f.write(self.args.model_name +  f"\t{time.strftime('%Y-%m-%d %H:%M:%S', time.localtime())}\t" + "{.2f}".format((end_time - start_time) / 60.) + "\n")
+                f.write("train loss: {:.4f}, valid loss: {:.4f}".format(metric.train_loss[-1], metric.valid_loss[-1]))
             if self.args.save:
                 plt.clf()
                 torch.save(model, self.final_model_path)
-                print(f"save model(final): {self.final_model_path}")
+                tqdm.write(f"save model(final): {self.final_model_path}")
                 np.save(os.path.join(self.data_path, "train_metric.npy"), metric.items())
                 fig = plot_metric({"train_loss": metric.train_loss, "valid_loss": metric.valid_loss},
                                   title="train and valid loss", result_path=self.image_path)
                 self.writer.add_figure("learn loss", fig)
                 self.writer.add_text("beat valid loss", f"{metric.best_valid_loss}")
+                self.writer.add_text("duration", "{:2f}".format((end_time - start_time) / 60.))
             return model
 
     def test_step(self, model: nn.Module, test_loader, test_num):
@@ -289,7 +303,8 @@ class Trainer:
 
         metric.srcc = scipy.stats.spearmanr(POLQA_True.T, POLQA_Predict.T)
         print('Spearman rank correlation coefficient= %f' % metric.srcc[0])
-
+        with open("log.txt", mode='a', encoding="utf-8") as f:
+            f.write("test loss: {:.4f}, lcc: {:.4f}, srcc: {:.4f} \n".format(metric.test_loss, float(metric.lcc[0][1]), metric.srcc[0]))
         if self.args.save:
             M = np.max([np.max(POLQA_Predict), 5])
             plt.clf()

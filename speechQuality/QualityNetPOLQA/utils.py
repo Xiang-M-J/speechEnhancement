@@ -52,12 +52,19 @@ class DNSPOLQADataset(Dataset):
 
 
 class FrameMse(nn.Module):
-    def __init__(self) -> None:
+    def __init__(self, enable=True) -> None:
         super(FrameMse, self).__init__()
+        self.enable = enable
+        if not enable:
+            print("warning! FrameMse 损失被设置为永远返回0")
 
     def forward(self, input, target):
         true_pesq = target[:, 0]
-        return torch.mean((10 ** (true_pesq - 4.5)) * torch.mean((input - target) ** 2, dim=1))
+
+        if self.enable:
+            return torch.mean((10 ** (true_pesq - 5)) * torch.mean((input - target) ** 2, dim=1))
+        else:
+            return 0
 
 
 class EDMLoss(nn.Module):

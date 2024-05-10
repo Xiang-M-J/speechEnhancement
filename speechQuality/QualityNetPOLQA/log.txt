@@ -1,0 +1,6 @@
+lstmA20240510_124954	2024-05-10 12:50:18	0.39
+train loss: 1.5498, valid loss: 1.2464 
+test loss: 1.5133, lcc: 0.6230, srcc: 0.7562 
+lstmA20240510_132001	2024-05-10 13:23:21	3.33
+train loss: 0.2078, valid loss: 0.3619 
+test loss: 0.5957, lcc: 0.8788, srcc: 0.8325 

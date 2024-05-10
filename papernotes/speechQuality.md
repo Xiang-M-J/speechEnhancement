@@ -18,6 +18,14 @@ CNN + 注意力（受限的的注意力，Restricted Self-Attention） + 时间�
 >
 > 训练 QualityNet 时特别需要注意损失函数，损失函数必须要正确，不能使用 weight_decay，否则会导致训练难以进行
 
+> [!CAUTION]
+>
+> 如果使用 CNN 进行训练，Frame Loss 可能需要设置为 0，但是效果比较差
+
+
+
+
+
 
 
 ## 基本知识
