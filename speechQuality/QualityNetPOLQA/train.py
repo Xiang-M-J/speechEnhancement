@@ -38,22 +38,27 @@ def load_model(args: Args):
 
 
 if __name__ == '__main__':
-    arg = Args("lstmA")
-    arg.epochs = 20
+    arg = Args("cnn")
+    arg.epochs = 40
     arg.batch_size = 64
-    arg.save = False
+    arg.save = True
     arg.lr = 1e-3
+
+    # 训练 CNN / tcn
+    arg.optimizer_type=1
+    # arg.weight_decay = 0.1
+    arg.enableFrame = False
     if arg.save:
         arg.write(arg.model_name)
     torch.manual_seed(arg.random_seed)
     np.random.seed(arg.random_seed)
     random.seed(arg.random_seed)
     forget_gate_bias = -3
-    trainer = Trainer(arg)
-    train_dataset, valid_dataset, test_dataset = load_dataset("wav_polqa_mini.list", arg.spilt_rate, arg.fft_size,
+
+    train_dataset, valid_dataset, test_dataset = load_dataset("wav_polqa_mid.list", arg.spilt_rate, arg.fft_size,
                                                               arg.hop_size)
+    trainer = Trainer(arg)
     model = load_model(arg)
-
     model = trainer.train(model, train_dataset=train_dataset, valid_dataset=valid_dataset)
-
     trainer.test(test_dataset=test_dataset, model=model)
+    # trainer.test(test_dataset=test_dataset, model_path=r"D:\work\speechEnhancement\speechQuality\QualityNetPOLQA\models\QN20240508_174129\best.pt")

@@ -61,7 +61,6 @@ class Temporal_Aware_Block(nn.Module):
         bn1 = nn.BatchNorm1d(filters)
         act1 = nn.ReLU()
         dropout1 = SpatialDropout(dropout)
-        # dropout1 = nn.Dropout(dropout)
         conv2 = (nn.Conv1d(in_channels=filters, out_channels=filters,
                            kernel_size=kernel_size, padding=padding, dilation=dilation))
         chomp2 = Chomp1d(padding)
@@ -69,28 +68,20 @@ class Temporal_Aware_Block(nn.Module):
 
         act2 = nn.ReLU()
         dropout2 = SpatialDropout(dropout)
-        # dropout2 = nn.Dropout(dropout)
 
-        # self.casual = nn.Sequential(
-        #     conv1, chomp1, act1, dropout1, conv2, chomp2, act2, dropout2
-        # )
         self.casual = nn.Sequential(
             conv1, chomp1, bn1, act1, dropout1, conv2, chomp2, bn2, act2, dropout2
         )
-        # self.casual = nn.Sequential(
-        #     conv1, chomp1, bn1, act1, conv2, chomp2, bn2, act2,
-        # ).to(device)
+        self.act = nn.ReLU()
         self.resample = nn.Conv1d(in_channels=feature_dim, out_channels=filters, kernel_size=1, padding="same")
-        self.act3 = nn.Sigmoid()
 
     def forward(self, x):  # input_shape: [batch_size, feature_dim, seq_len]
         identity_x = x
         x = self.casual(x)
         if identity_x.shape[1] != x.shape[1]:
             identity_x = self.resample(identity_x)
-        x = self.act3(x)
-        x = torch.mul(x, identity_x)
-        return x
+        x = torch.add(x, identity_x)
+        return self.act(x)
 
 
 class WeightLayer(nn.Module):
@@ -103,14 +94,38 @@ class WeightLayer(nn.Module):
         return x
 
 
-class CausalConv(nn.Module):  # Conv1d Input:[batch_size, feature_dim, seq_len]
+class TCNLayer(nn.Module):  # Conv1d Input:[batch_size, feature_dim, seq_len]
     """
     Input: [batch_size, feature_dim, seq_len] \n
     Output: [batch_size, filters, seq_len]
     """
 
     def __init__(self, in_channel, channel=256, dilation=8, dropout=0.3):
-        super(CausalConv, self).__init__()
+        super(TCNLayer, self).__init__()
+
+        self.dilation_layer = nn.ModuleList([])  # ModuleList存放Module，方便后面add_graph
+
+        for i in [2 ** i for i in range(dilation)]:
+            self.dilation_layer.append(
+                Temporal_Aware_Block(feature_dim=channel, filters=channel, kernel_size=3,
+                                     dilation=i, dropout=dropout)
+            )
+
+
+    def forward(self, x):
+        for layer in self.dilation_layer:
+            x = layer(x)
+        return x  # o
+
+
+class TIM(nn.Module):  # Conv1d Input:[batch_size, feature_dim, seq_len]
+    """
+    Input: [batch_size, feature_dim, seq_len] \n
+    Output: [batch_size, filters, seq_len]
+    """
+
+    def __init__(self, in_channel, channel=256, dilation=8, dropout=0.3):
+        super(TIM, self).__init__()
 
         self.dilation_layer = nn.ModuleList([])  # ModuleList存放Module，方便后面add_graph
         # padding = 0  # 下面的因果卷积的dilation=1 kernel_size=1

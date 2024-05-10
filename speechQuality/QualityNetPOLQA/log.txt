@@ -1,6 +1,24 @@
-lstmA20240510_124954	2024-05-10 12:50:18	0.39
-train loss: 1.5498, valid loss: 1.2464 
-test loss: 1.5133, lcc: 0.6230, srcc: 0.7562 
-lstmA20240510_132001	2024-05-10 13:23:21	3.33
-train loss: 0.2078, valid loss: 0.3619 
-test loss: 0.5957, lcc: 0.8788, srcc: 0.8325 
+cnn20240510_222029	2024-05-10 22:25:13	4.73
+train loss: 0.1320, valid loss: 0.3643
+test loss: 0.3934, lcc: 0.8560, srcc: 0.8150 
+cnn20240510_222543	2024-05-10 22:29:24	3.67
+train loss: 0.1989, valid loss: 0.4138
+test loss: 0.4015, lcc: 0.8497, srcc: 0.8158 
+cnn20240510_223046	2024-05-10 22:31:43	0.94
+train loss: 0.9294, valid loss: 0.8257
+test loss: 1.0231, lcc: 0.6260, srcc: 0.7890 
+cnn20240510_223218	2024-05-10 22:35:31	3.22
+train loss: 0.2067, valid loss: 0.4127
+test loss: 0.3491, lcc: 0.8738, srcc: 0.8483 
+tcn20240510_223727	2024-05-10 22:38:47	1.33
+train loss: 1.5529, valid loss: 10.1457
+test loss: 3.5867, lcc: 0.7872, srcc: 0.7776 
+tcn20240510_223949	2024-05-10 22:45:12	5.37
+train loss: 0.3714, valid loss: 0.4603
+test loss: 0.6346, lcc: 0.7710, srcc: 0.7466 
+cnn20240510_224705	2024-05-10 23:48:55	61.76
+train loss: 0.0611, valid loss: 0.2384 
+test loss: 0.2461, lcc: 0.9266, srcc: 0.9026 
+lstmA20240510_163201	2024-05-11 07:29:18	897.18
+train loss: 0.0665, valid loss: 0.1126 
+test loss: 0.1137, lcc: 0.9668, srcc: 0.9425 

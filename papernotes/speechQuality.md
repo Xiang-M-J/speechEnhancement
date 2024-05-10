@@ -22,9 +22,13 @@ CNN + 注意力（受限的的注意力，Restricted Self-Attention） + 时间�
 >
 > 如果使用 CNN 进行训练，Frame Loss 可能需要设置为 0，但是效果比较差
 
+> [!TIP]
+>
+> 在训练很大的数据集时，可能需要将学习率降低的步长减小
 
-
-
+> [!IMPORTANT]
+>
+> 在训练CNN模型时，使用 Adam 优化器
 
 
 

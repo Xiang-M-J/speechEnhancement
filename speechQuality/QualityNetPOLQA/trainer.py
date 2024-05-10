@@ -182,8 +182,8 @@ class Trainer:
                     for batch_idx, (x, y) in loop_valid:
                         loss, _, _ = self.predict(model, x, y, loss1, loss2)
                         valid_loss += loss
-                        loop_train.set_description_str(f'Validating [{epoch + 1}/{self.epochs}]')
-                        loop_train.set_postfix_str("step: {}/{} loss: {:.4f}".format(batch_idx, valid_step, loss))
+                        loop_valid.set_description_str(f'Validating [{epoch + 1}/{self.epochs}]')
+                        loop_valid.set_postfix_str("step: {}/{} loss: {:.4f}".format(batch_idx, valid_step, loss))
 
                 if self.args.scheduler_type != 0:
                     scheduler.step()
@@ -253,8 +253,8 @@ class Trainer:
             end_time = time.time()
             tqdm.write('Train ran for %.2f minutes' % ((end_time - start_time) / 60.))
             with open("log.txt", mode='a', encoding="utf-8") as f:
-                f.write(self.args.model_name +  f"\t{time.strftime('%Y-%m-%d %H:%M:%S', time.localtime())}\t" + "{.2f}".format((end_time - start_time) / 60.) + "\n")
-                f.write("train loss: {:.4f}, valid loss: {:.4f}".format(metric.train_loss[-1], metric.valid_loss[-1]))
+                f.write(self.args.model_name +  f"\t{time.strftime('%Y-%m-%d %H:%M:%S', time.localtime())}\t" + "{:.2f}".format((end_time - start_time) / 60.) + "\n")
+                f.write("train loss: {:.4f}, valid loss: {:.4f}\n".format(metric.train_loss[-1], metric.valid_loss[-1]))
             if self.args.save:
                 plt.clf()
                 torch.save(model, self.final_model_path)

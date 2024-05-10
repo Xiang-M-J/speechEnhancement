@@ -48,4 +48,23 @@ weight_decay: 0
 
 
 
+### 2024/05/09 23:02:05
+
+与上一个相比，将原本 Frame_loss 中的
+
+```python
+torch.mean((10 ** (true_pesq - 4.5)) * torch.mean((input - target) ** 2, dim=1))
+```
+
+改为
+
+```python
+torch.mean((10 ** (true_pesq - 5)) * torch.mean((input - target) ** 2, dim=1))
+```
+
+
+
+
+
+## CNN
 
