@@ -21,3 +21,4 @@ speechQuality/PQLQA/T-REC-P.863-201803-I!!ZIP-E
 *.hdf5
 *.wav
 */*/runs
+*.list

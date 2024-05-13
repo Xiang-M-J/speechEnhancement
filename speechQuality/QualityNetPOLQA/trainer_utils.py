@@ -56,9 +56,12 @@ class Args:
                  gamma=0.3,
                  step_size=10,
                  dropout=0.3,
-                 score_step=0.5,
+                 score_step=0.2,
                  load_weight=False,
                  enableFrame=True,
+                 smooth=True,
+                 cnn_filter=128,
+                 cnn_feature=64,
                  ):
         """
         Args:
@@ -77,6 +80,7 @@ class Args:
             shuffle: 是否打乱数据 Default: True
             score_step: 分数分布步长
             enableFrame: 是否允许 Frame loss Default: True
+            smooth: 是否平滑标签 Default: True
         """
 
         # 基础参数
@@ -92,9 +96,14 @@ class Args:
         self.scheduler_type = scheduler_type
         self.load_weight = load_weight
 
+        # 损失函数相关
         self.enableFrame = enableFrame
-
+        self.smooth = smooth
         self.score_step = score_step
+
+        # cnn 相关
+        self.cnn_filter = cnn_filter
+        self.cnn_feature = cnn_feature
 
         # 用于数据集
         if spilt_rate is None:

@@ -16,14 +16,12 @@ from utils import FrameMse
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
 
 
-class Trainer:
+class TrainerSE:
     """
-    训练
+    训练语音增强模型
     """
 
     def __init__(self, args: Args):
-        if "Class" in args.model_type:
-            raise TypeError("Error model type")
         self.args: Args = args
         self.optimizer_type = args.optimizer_type
         self.model_path = f"models/{args.model_name}/"
@@ -128,6 +126,8 @@ class Trainer:
             batch_size=self.batch_size,
             shuffle=self.args.shuffle
         )
+        train_num = len(train_dataset)
+        valid_num = len(valid_dataset)
 
         train_step = len(train_loader)
         valid_step = len(valid_loader)
