@@ -11,7 +11,8 @@ from torch.utils.tensorboard import SummaryWriter
 from tqdm import tqdm
 
 from trainer_utils import Args, EarlyStopping, Metric, plot_metric
-from utils import EDMLoss, FrameEDMLoss, accurate_num_cal, oneHotToFloat, AvgCrossEntropyLoss, FrameCrossEntropyLoss
+from utils import EDMLoss, FrameEDMLoss, accurate_num_cal, oneHotToFloat, AvgCrossEntropyLoss, FrameCrossEntropyLoss, \
+    disError, topKError, shiftErrorWithTarget
 
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
 
@@ -86,16 +87,26 @@ class TrainerC:
         loss2 = FrameEDMLoss(smooth= self.args.smooth, enable= self.args.enableFrame, step= self.args.score_step)
         # loss2 = nn.MSELoss(reduction='mean')
         # loss2 = FrameCrossEntropyLoss(enable=self.args.enableFrame, step=self.args.score_step)
+        loss3 = disError(self.args.score_step)
+        loss4 = shiftErrorWithTarget(self.args.score_step, 5)
         loss1.to(device=device)
         loss2.to(device=device)
-        return loss1, loss2
+        loss3.to(device=device)
+        loss4.to(device=device)
+        return [loss1, loss2, loss3, loss4]
 
-    def train_step(self, model, x, y, loss1, loss2, optimizer):
+    def train_step(self, model, x, y, loss_fns, optimizer):
+        loss1 = loss_fns[0]
+        loss2 = loss_fns[1]
+        loss3 = loss_fns[2]
+        loss4 = loss_fns[3]
         y1 = y[0]
         y2 = y[1]
         frameS, avgS = model(x)
         l1 = loss1(avgS.squeeze(-1), y1)
         l2 = loss2(frameS, y2)
+        l3 = loss3(avgS.squeeze(-1), y1)
+        l4 = loss4(avgS.squeeze(-1), y1)
         # l2 = loss2(avgS.squeeze(-1), y1)
         loss = l1 + l2
         # loss = loss1(avgS, y1)
@@ -106,18 +117,22 @@ class TrainerC:
         optimizer.step()
         return loss.cpu().detach().numpy(), accurate_num
 
-    def predict(self, model, x, y, loss1, loss2):
+    def predict(self, model, x, y, loss_fns):
         """
         Return loss, predict score, true score, accuracy num
         """
+        loss1 = loss_fns[0]
+        loss2 = loss_fns[1]
+        loss3 = loss_fns[2]
         y1 = y[0]
         y2 = y[1]
         frameS, avgS = model(x)
         accurate_num = accurate_num_cal(avgS, y1, self.args.score_step)
         l1 = loss1(avgS.squeeze(-1), y1)
         l2 = loss2(frameS, y2)
+        l3 = loss3(avgS.squeeze(-1), y1)
         # l2 = loss2(avgS.squeeze(-1), y1)
-        loss = l1 + l2
+        loss = l1 + l2 + l3
         return loss.cpu().detach().numpy(), oneHotToFloat(avgS.cpu().detach().numpy(), self.args.score_step), y1.cpu().detach().numpy(), accurate_num
 
     def train(self, model: nn.Module, train_dataset, valid_dataset):
@@ -155,7 +170,7 @@ class TrainerC:
         scheduler = self.get_scheduler(optimizer, arg=self.args)
 
         # 设置损失函数和模型
-        loss1, loss2 = self.get_loss_fn()
+        loss_fns = self.get_loss_fn()
         model = model.to(device)
 
         # 保存一些信息
@@ -186,7 +201,7 @@ class TrainerC:
                 model.train()
                 loop_train = tqdm(enumerate(train_loader), leave=False)
                 for batch_idx, (x, y) in loop_train:
-                    loss, num = self.train_step(model, x, y, loss1, loss2, optimizer)
+                    loss, num = self.train_step(model, x, y, loss_fns, optimizer)
                     train_loss += loss
                     train_acc_num += num
                     loop_train.set_description_str(f'Training [{epoch + 1}/{self.epochs}]')
@@ -196,7 +211,7 @@ class TrainerC:
                 with torch.no_grad():
                     loop_valid = tqdm(enumerate(valid_loader), leave=False)
                     for batch_idx, (x, y) in loop_valid:
-                        loss, _, _, num = self.predict(model, x, y, loss1, loss2)
+                        loss, _, _, num = self.predict(model, x, y, loss_fns)
                         valid_loss += loss
                         valid_acc_num += num
                         loop_valid.set_description_str(f'Validating [{epoch + 1}/{self.epochs}]')
@@ -317,13 +332,13 @@ class TrainerC:
         POLQA_Predict = np.zeros([test_num, ])
         POLQA_True = np.zeros([test_num, ])
         idx = 0
-        loss1, loss2 = self.get_loss_fn()
+        loss_fns = self.get_loss_fn()
         test_loss = 0
         test_acc_num = 0
         with torch.no_grad():
             for batch_idx, (x, y) in tqdm(enumerate(test_loader)):
                 batch = x.shape[0]
-                loss, est_polqa, true_polqa, num = self.predict(model, x, y, loss1, loss2)
+                loss, est_polqa, true_polqa, num = self.predict(model, x, y, loss_fns)
                 test_loss += loss
                 test_acc_num += num
                 POLQA_Predict[idx: idx + batch] = est_polqa

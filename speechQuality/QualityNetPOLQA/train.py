@@ -41,13 +41,13 @@ def load_model(args: Args):
 
 if __name__ == '__main__':
     arg = Args("lstmClass")
-    arg.epochs = 45
+    arg.epochs = 35
     arg.batch_size = 64
     arg.save = False
     arg.lr = 1e-3
     # arg.step_size = 5
     # 训练 CNN / tcn
-
+    arg.score_step = 0.4
     # arg.optimizer_type=1
     # arg.enableFrame = False
 
@@ -61,10 +61,10 @@ if __name__ == '__main__':
     forget_gate_bias = -3
 
     # x: (batch_size, seq_len, feature_dim), y1: (batch_size,), y2: (batch_size, seq_len)
-    train_dataset, valid_dataset, test_dataset = load_dataset("wav_polqa_big.list", arg.spilt_rate, arg.fft_size,
+    train_dataset, valid_dataset, test_dataset = load_dataset("wav_polqa_mini.list", arg.spilt_rate, arg.fft_size,
                                                               arg.hop_size)
-    trainer = Trainer(arg)
-    # trainer = TrainerC(arg)
+    # trainer = Trainer(arg)
+    trainer = TrainerC(arg)
     model = load_model(arg)
     model = trainer.train(model, train_dataset=train_dataset, valid_dataset=valid_dataset)
     trainer.test(test_dataset=test_dataset, model=model)

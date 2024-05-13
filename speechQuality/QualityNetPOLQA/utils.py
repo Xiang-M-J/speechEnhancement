@@ -108,7 +108,7 @@ class FrameEDMLoss(nn.Module):
             cdf_input = torch.cumsum(input_, dim=-1)
             cdf_target = torch.cumsum(target_, dim=-1)
             cdf_diff = cdf_input - cdf_target
-            samplewise_emd = torch.sqrt(torch.mean(torch.pow(cdf_diff, 2), dim=-1))
+            samplewise_emd = torch.sqrt(torch.mean(torch.pow(cdf_diff, 2), dim=-1)+1e-6)
             return samplewise_emd.mean()
         else:
             return 0
@@ -182,7 +182,7 @@ class EDMLoss(nn.Module):
         cdf_target = torch.cumsum(p_target_, dim=1)
         cdf_estimate = torch.cumsum(p_estimate_, dim=1)
         cdf_diff = cdf_estimate - cdf_target
-        samplewise_emd = torch.sqrt(torch.mean(torch.pow(torch.abs(cdf_diff), 2), dim=-1)+1e-6)
+        samplewise_emd = torch.sqrt(torch.mean(torch.pow(torch.abs(cdf_diff), 2), dim=-1) + 1e-6)
         return samplewise_emd.mean()
 
 
@@ -205,7 +205,7 @@ class disError(nn.Module):
         self.step = step
 
     def forward(self, input, target):
-        pred = oneHotToFloat(input, self.step)
+        pred = oneHotToFloatTorch(input, self.step).squeeze(1)
         return torch.mean(torch.pow(target - pred, 2))
 
 
@@ -217,7 +217,7 @@ class shiftError(nn.Module):
 
     def forward(self, input):
         value, index = torch.topk(input, self.topk, dim=-1, out=None)
-        non_pLoss = torch.mean(torch.pow(1-torch.sum(value, dim=-1), 2))
+        non_pLoss = torch.mean(torch.pow(1 - torch.sum(value, dim=-1), 2))
         # non_cIndex = index - index[:, 0].unsqueeze(1).repeat(1, self.topk)
         # non_cIndex = non_cIndex[:, 1:]
         # non_cLoss = torch.mean(torch.sum(torch.abs(non_cIndex), dim=-1))
@@ -234,18 +234,19 @@ class shiftErrorWithTarget(nn.Module):
     def forward(self, input, target):
         # true_index = torch.argmax(target, dim=-1)
         true_index = (((target - 1.0) * 100).int() // int(self.step * 100)).long().unsqueeze(1)
-        topk_p = torch.zeros([input.shape[0], 1])
-        input_extend = torch.cat([torch.zeros([input.shape[0], self.left]), input, torch.zeros([input.shape[0], self.left])], dim=-1)
-        
-        for i in range(0, self.topk):
-            topk_p = topk_p + torch.gather(input_extend, dim=-1, index=true_index+i)
-        
+        topk_p = torch.zeros([input.shape[0], 1]).to(input.device)
+        input_extend = torch.cat([torch.zeros([input.shape[0], self.left]).to(input.device), input,
+                                  torch.zeros([input.shape[0], self.left]).to(input.device)], dim=-1)
 
-        non_pLoss = torch.mean(torch.pow(1-topk_p, 2))
+        for i in range(0, self.topk):
+            topk_p = topk_p + torch.gather(input_extend, dim=-1, index=true_index + i)
+
+        non_pLoss = torch.mean(torch.pow(1 - topk_p, 2))
 
         # pred_index = torch.argmax(input, dim=-1).unsqueeze(-1)
         # non_cLoss = torch.mean(torch.sum(torch.abs(pred_index - true_index), dim=-1))
         return non_pLoss
+
 
 def floatTensorToOnehot(x, step, s=False):
     """
@@ -325,12 +326,12 @@ def ListRead(path):
 
 if __name__ == '__main__':
     p_est = torch.randn([4, 20])
-    p_tgt = torch.abs(torch.randn([4,])) * 2 + 1.0
+    p_tgt = torch.abs(torch.randn([4, ])) * 2 + 1.0
     p_tgt[p_tgt > 5.0] = 4.99
     # loss = FrameEDMLoss()
     # loss = topKError(topK=5, step=0.2)
     loss = shiftError(step=0.2, topk=5)
-    print(loss(p_est ))
+    print(loss(p_est))
     #
     # predict = torch.abs(torch.randn([64, 20])) * 2 + 1
     # target = torch.randn([64]) * 2 + 1
