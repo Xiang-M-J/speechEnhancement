@@ -40,7 +40,8 @@ class TrainerC:
         self.test_acc = []
         if args.save:
             self.check_dir()
-            self.writer = SummaryWriter("runs/" + self.args.model_type + time.strftime('%Y%m%d_%H%M%S', time.localtime()))
+            self.writer = SummaryWriter(
+                "runs/" + self.args.model_type + time.strftime('%Y%m%d_%H%M%S', time.localtime()))
 
     def check_dir(self):
         """
@@ -84,7 +85,7 @@ class TrainerC:
     def get_loss_fn(self):
         loss1 = EDMLoss(self.args.score_step, self.args.smooth)
         # loss1 = AvgCrossEntropyLoss(step=self.args.score_step)
-        loss2 = FrameEDMLoss(smooth= self.args.smooth, enable= self.args.enableFrame, step= self.args.score_step)
+        loss2 = FrameEDMLoss(smooth=self.args.smooth, enable=self.args.enableFrame, step=self.args.score_step)
         # loss2 = nn.MSELoss(reduction='mean')
         # loss2 = FrameCrossEntropyLoss(enable=self.args.enableFrame, step=self.args.score_step)
         loss3 = disError(self.args.score_step)
@@ -133,7 +134,8 @@ class TrainerC:
         l3 = loss3(avgS.squeeze(-1), y1)
         # l2 = loss2(avgS.squeeze(-1), y1)
         loss = l1 + l2 + l3
-        return loss.cpu().detach().numpy(), oneHotToFloat(avgS.cpu().detach().numpy(), self.args.score_step), y1.cpu().detach().numpy(), accurate_num
+        return loss.cpu().detach().numpy(), oneHotToFloat(avgS.cpu().detach().numpy(),
+                                                          self.args.score_step), y1.cpu().detach().numpy(), accurate_num
 
     def train(self, model: nn.Module, train_dataset, valid_dataset):
         print("begin train")
@@ -249,7 +251,8 @@ class TrainerC:
                     np.save(os.path.join(self.data_path, "train_metric.npy"), metric.items())
                 tqdm.write(
                     'Epoch {}:  train Loss:{:.4f}\t val Loss:{:.4f}\t train Acc:{:.4f}\t valid Acc:{:.4f}'.format(
-                        epoch + 1, metric.train_loss[-1], metric.valid_loss[-1], metric.train_acc[-1], metric.valid_acc[-1]))
+                        epoch + 1, metric.train_loss[-1], metric.valid_loss[-1], metric.train_acc[-1],
+                        metric.valid_acc[-1]))
 
                 if metric.valid_loss[-1] < best_valid_loss:
                     tqdm.write(f"valid loss decrease from {best_valid_loss :.3f} to {metric.valid_loss[-1]:.3f}")
@@ -274,15 +277,17 @@ class TrainerC:
                     self.args.model_name + f"\t{time.strftime('%Y-%m-%d %H:%M:%S', time.localtime())}\t" + "{:.2f}".format(
                         (end_time - start_time) / 60.) + "\n")
                 f.write(
-                    "train loss: {:.4f}, valid loss: {:.4f} train acc: {:.4f}, valid acc: {:.4f} \n".format(metric.train_loss[-1], metric.valid_loss[-1], metric.train_acc[-1], metric.valid_acc[-1]))
+                    "train loss: {:.4f}, valid loss: {:.4f} train acc: {:.4f}, valid acc: {:.4f} \n".format(
+                        metric.train_loss[-1], metric.valid_loss[-1], metric.train_acc[-1], metric.valid_acc[-1]))
             if self.args.save:
                 plt.clf()
                 torch.save(model, self.final_model_path)
                 tqdm.write(f"save model(final): {self.final_model_path}")
                 np.save(os.path.join(self.data_path, "train_metric.npy"), metric.items())
                 fig1 = plot_metric({"train_loss": metric.train_loss, "valid_loss": metric.valid_loss},
-                                  title="train and valid loss", result_path=self.image_path)
-                fig2 = plot_metric({"train acc": metric.train_acc, "valid acc": metric.valid_acc}, title="train and valid acc", ylabel="acc", result_path=self.image_path)
+                                   title="train and valid loss", result_path=self.image_path)
+                fig2 = plot_metric({"train acc": metric.train_acc, "valid acc": metric.valid_acc},
+                                   title="train and valid acc", ylabel="acc", result_path=self.image_path)
                 self.writer.add_figure("learn loss", fig1)
                 self.writer.add_figure("learn acc", fig2)
                 self.writer.add_text("beat valid loss", f"{metric.best_valid_loss}")
@@ -357,8 +362,10 @@ class TrainerC:
         metric.srcc = scipy.stats.spearmanr(POLQA_True.T, POLQA_Predict.T)
         print('Spearman rank correlation coefficient= %f' % metric.srcc[0])
         with open("log.txt", mode='a', encoding="utf-8") as f:
-            f.write("test loss: {:.4f}, test acc: {:.4f} lcc: {:.4f}, srcc: {:.4f} \n".format(metric.test_loss, metric.test_acc, float(metric.lcc[0][1]),
-                                                                             metric.srcc[0]))
+            f.write(
+                "test loss: {:.4f}, mse: {:.4f}, test acc: {:.4f} lcc: {:.4f}, srcc: {:.4f} \n"
+                .format(metric.test_loss,  metric.mse, metric.test_acc, float(metric.lcc[0][1]), metric.srcc[0]))
+
         if self.args.save:
             M = np.max([np.max(POLQA_Predict), 5])
             plt.clf()

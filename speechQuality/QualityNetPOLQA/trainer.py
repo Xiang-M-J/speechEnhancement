@@ -39,7 +39,8 @@ class Trainer:
         self.test_acc = []
         if args.save:
             self.check_dir()
-            self.writer = SummaryWriter("runs/" + self.args.model_type + time.strftime('%Y%m%d_%H%M%S', time.localtime()))
+            self.writer = SummaryWriter(
+                "runs/" + self.args.model_type + time.strftime('%Y%m%d_%H%M%S', time.localtime()))
 
     def check_dir(self):
         """
@@ -90,10 +91,15 @@ class Trainer:
     def train_step(self, model, x, y, loss1, loss2, optimizer):
         y1 = y[0]
         y2 = y[1]
-        frameS, avgS = model(x)
-        l1 = loss1(avgS.squeeze_(-1), y1)
-        l2 = loss2(frameS, y2)
-        loss = l1 + l2
+        if "cnn" in self.args.model_type:
+            avgS = model(x)
+            loss = loss1(avgS.squeeze(-1), y1)
+        else:
+            frameS, avgS = model(x)
+            l1 = loss1(avgS.squeeze(-1), y1)
+            l2 = loss2(frameS, y2)
+            loss = l1 + l2
+
         optimizer.zero_grad()
         loss.backward()
         optimizer.step()
@@ -105,11 +111,15 @@ class Trainer:
         """
         y1 = y[0]
         y2 = y[1]
-        frameS, avgS = model(x)
-        l1 = loss1(avgS.squeeze_(-1), y1)
-        l2 = loss2(frameS, y2)
-        loss = l1 + l2
-        return loss.cpu().detach().numpy(), avgS.cpu().detach().numpy(), y1.cpu().detach().numpy()
+        if "cnn" in self.args.model_type:
+            avgS = model(x)
+            loss = loss1(avgS.squeeze(-1), y1)
+        else:
+            frameS, avgS = model(x)
+            l1 = loss1(avgS.squeeze(-1), y1)
+            l2 = loss2(frameS, y2)
+            loss = l1 + l2
+        return loss.cpu().detach().numpy(), avgS.squeeze(-1).cpu().detach().numpy(), y1.cpu().detach().numpy()
 
     def train(self, model: nn.Module, train_dataset, valid_dataset):
         print("begin train")
@@ -312,8 +322,8 @@ class Trainer:
         metric.srcc = scipy.stats.spearmanr(POLQA_True.T, POLQA_Predict.T)
         print('Spearman rank correlation coefficient= %f' % metric.srcc[0])
         with open("log.txt", mode='a', encoding="utf-8") as f:
-            f.write("test loss: {:.4f}, lcc: {:.4f}, srcc: {:.4f} \n".format(metric.test_loss, float(metric.lcc[0][1]),
-                                                                             metric.srcc[0]))
+            f.write("test loss: {:.4f}, mse: {:.4f},  lcc: {:.4f}, srcc: {:.4f} \n"
+                    .format(metric.test_loss, metric.mse, float(metric.lcc[0][1]), metric.srcc[0]))
 
         if self.args.save:
             M = np.max([np.max(POLQA_Predict), 5])

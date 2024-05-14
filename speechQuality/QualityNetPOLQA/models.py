@@ -4,6 +4,8 @@ import torch
 import torch.nn as nn
 from einops.einops import rearrange
 from einops.layers.torch import Rearrange
+from keras.applications.densenet import layers
+
 from blocks import TCNLayer
 
 
@@ -62,11 +64,11 @@ def get_attn_mask(seq_len, offset):
 
 
 class ConvBlock(nn.Module):
-    def __init__(self, in_channels, out_channels, pool_size, dilation_size, feature_dim=128):
+    def __init__(self, in_channels, out_channels, pool_size, dilation, feature_dim=128):
         super(ConvBlock, self).__init__()
-        self.conv1 = nn.Conv1d(in_channels, feature_dim, 1, dilation=dilation_size, padding="same")
-        self.conv2 = nn.Conv1d(feature_dim, feature_dim, 3, dilation=dilation_size, padding="same")
-        self.conv3 = nn.Conv1d(feature_dim, out_channels, 1, dilation=dilation_size, padding="same")
+        self.conv1 = nn.Conv1d(in_channels, feature_dim, 1, dilation=dilation)
+        self.conv2 = nn.Conv1d(feature_dim, feature_dim, 3, dilation=dilation, padding="same")
+        self.conv3 = nn.Conv1d(feature_dim, out_channels, 1, dilation=dilation)
         self.pool = nn.MaxPool1d(pool_size)
         self.rct = nn.ReLU()
         # self.relu = nn.ReLU()
@@ -111,13 +113,12 @@ class Cnn(nn.Module):
         self.prepare = nn.Sequential(
             Rearrange("N L C -> N C L"),
             nn.Conv1d(in_channels=257, out_channels=filter_size, kernel_size=5),
-            # nn.BatchNorm1d(num_features=256),
             nn.ELU(),
         )
-        self.conv1 = ConvBlock(filter_size, filter_size, pool_size=4, feature_dim=feature_dim, dilation_size=64)
-        self.conv2 = ConvBlock(filter_size, filter_size, pool_size=4, feature_dim=feature_dim, dilation_size=32)
-        self.conv3 = ConvBlock(filter_size, filter_size, pool_size=2, feature_dim=feature_dim, dilation_size=16)
-        self.conv4 = ConvBlock(filter_size, filter_size, pool_size=2, feature_dim=feature_dim, dilation_size=8)
+        self.conv1 = ConvBlock(filter_size, filter_size, pool_size=4, feature_dim=feature_dim, dilation=64)
+        self.conv2 = ConvBlock(filter_size, filter_size, pool_size=4, feature_dim=feature_dim, dilation=32)
+        self.conv3 = ConvBlock(filter_size, filter_size, pool_size=2, feature_dim=feature_dim, dilation=16)
+        self.conv4 = ConvBlock(filter_size, filter_size, pool_size=2, feature_dim=feature_dim, dilation=8)
 
         # self.conv2 = ConvBlock(256, 256)
         # self.conv3 = ConvBlock(64, 1)
@@ -129,11 +130,17 @@ class Cnn(nn.Module):
         # )
         self.avg_pool = nn.Sequential(nn.Flatten(), nn.AdaptiveAvgPool1d(1))
         self.avg_linear = nn.Sequential(
+            Rearrange("N C L -> N L C"),
+            nn.LayerNorm(filter_size),
+            Rearrange("N L C -> N C L"),
             nn.AdaptiveAvgPool1d(1),
             nn.Flatten(),
-            nn.Linear(filter_size, 20),
+            # nn.Dropout(dropout),
+            nn.Linear(filter_size, 50),
             nn.Dropout(dropout),
-            nn.Linear(20, 1),
+            nn.ReLU(),
+            nn.Linear(50, 1),
+
         )
 
     def forward(self, x):
@@ -143,9 +150,9 @@ class Cnn(nn.Module):
         x = self.conv3(x)
         x = self.conv4(x)
         # Frame_score = self.mlp(rearrange(x, "N C L -> N L C")).squeeze(-1)
-        Average_score = self.avg_pool(x)
+        Average_score = self.avg_linear(x)
         # Average_score = torch.clamp(Average_score, min=1, max=5)
-        return torch.tensor(0), Average_score
+        return Average_score
 
 
 class CnnClass(nn.Module):
@@ -327,7 +334,7 @@ class QualityNetClassifier2(nn.Module):
 
 if __name__ == '__main__':
     # model = TimeRestrictedAttention(257, 128)
-    model = QualityNetAttn()
+    model = Cnn(128,64, 0.3)
     x = torch.randn((4, 1024, 257))
     y = model(x)
     print(y[0].shape, y[1].shape)

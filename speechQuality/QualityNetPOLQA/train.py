@@ -48,7 +48,7 @@ if __name__ == '__main__':
     # arg.step_size = 5
     # 训练 CNN / tcn
     arg.score_step = 0.4
-    # arg.optimizer_type=1
+    # arg.optimizer_type = 1
     # arg.enableFrame = False
 
     arg.smooth = False
