@@ -3,7 +3,7 @@ import random
 import numpy as np
 import torch
 
-from models import QualityNet, Cnn, TCN, QualityNetAttn, QualityNetClassifier, QualityNetClassifier2, CnnClass
+from models import QualityNet, Cnn, TCN, QualityNetAttn, QualityNetClassifier, CnnClass, Cnn2d, CnnAttn
 from trainer import Trainer
 from trainerClassifier import TrainerC
 from trainer_utils import load_dataset, Args
@@ -16,12 +16,14 @@ def load_model(args: Args):
         model = QualityNetAttn(args.dropout)
     elif args.model_type == "cnn":
         model = Cnn(args.cnn_filter, args.cnn_feature, args.dropout)
+    elif args.model_type == "cnn2d":
+        model = Cnn2d()
+    elif args.model_type == "cnnA":
+        model = CnnAttn(args.cnn_filter, args.cnn_feature, args.dropout)
     elif args.model_type == "tcn":
         model = TCN()
     elif args.model_type == "lstmClass":
         model = QualityNetClassifier(args.dropout, args.score_step)
-    elif args.model_type == "lstmClass2":
-        model = QualityNetClassifier2(args.dropout, args.score_step)
     elif args.model_type == "cnnClass":
         model = CnnClass(args.dropout, args.score_step)
     else:
@@ -40,18 +42,18 @@ def load_model(args: Args):
 
 
 if __name__ == '__main__':
-    arg = Args("lstmClass")
+    arg = Args("cnn")
     arg.epochs = 35
-    arg.batch_size = 64
-    arg.save = False
+    arg.batch_size = 128
+    arg.save = True
     arg.lr = 1e-3
     # arg.step_size = 5
     # 训练 CNN / tcn
-    arg.score_step = 0.4
-    # arg.optimizer_type = 1
-    # arg.enableFrame = False
+    arg.score_step = 0.2
+    arg.optimizer_type = 1
+    arg.enableFrame = False
 
-    arg.smooth = False
+    arg.smooth = True
     if arg.save:
         arg.write(arg.model_name)
     print(arg)
@@ -61,10 +63,10 @@ if __name__ == '__main__':
     forget_gate_bias = -3
 
     # x: (batch_size, seq_len, feature_dim), y1: (batch_size,), y2: (batch_size, seq_len)
-    train_dataset, valid_dataset, test_dataset = load_dataset("wav_polqa_mini.list", arg.spilt_rate, arg.fft_size,
+    train_dataset, valid_dataset, test_dataset = load_dataset("wav_train_qn.list", arg.spilt_rate, arg.fft_size,
                                                               arg.hop_size)
-    # trainer = Trainer(arg)
-    trainer = TrainerC(arg)
+    trainer = Trainer(arg)
+    # trainer = TrainerC(arg)
     model = load_model(arg)
     model = trainer.train(model, train_dataset=train_dataset, valid_dataset=valid_dataset)
     trainer.test(test_dataset=test_dataset, model=model)

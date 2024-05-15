@@ -182,7 +182,7 @@ class EDMLoss(nn.Module):
         cdf_target = torch.cumsum(p_target_, dim=1)
         cdf_estimate = torch.cumsum(p_estimate_, dim=1)
         cdf_diff = cdf_estimate - cdf_target
-        samplewise_emd = torch.sqrt(torch.mean(torch.pow(torch.abs(cdf_diff), 2), dim=-1) + 1e-6)
+        samplewise_emd = torch.mean(torch.pow(torch.abs(cdf_diff), 2), dim=-1)
         return samplewise_emd.mean()
 
 
@@ -241,7 +241,7 @@ class shiftErrorWithTarget(nn.Module):
         for i in range(0, self.topk):
             topk_p = topk_p + torch.gather(input_extend, dim=-1, index=true_index + i)
 
-        non_pLoss = torch.mean(torch.pow(1 - topk_p, 2))
+        non_pLoss = torch.mean(torch.abs(1 - topk_p))
 
         # pred_index = torch.argmax(input, dim=-1).unsqueeze(-1)
         # non_cLoss = torch.mean(torch.sum(torch.abs(pred_index - true_index), dim=-1))

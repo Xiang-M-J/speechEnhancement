@@ -30,30 +30,23 @@ class BLSTM_frame_sig_att(nn.Module):
         self.act_fn = get_act_fn(act_fn)
         self.dropout = nn.Dropout(p=0.3)
         self.hasqiAtt_layer = nn.MultiheadAttention(linear_output, num_heads=8)
-        self.haspiAtt_layer = nn.MultiheadAttention(linear_output, num_heads=8)
         
         self.hasqiframe_score = nn.Linear(linear_output, 1, bias=True)
-        self.haspiframe_score = nn.Linear(linear_output, 1, bias=True)
         self.sigmoid = nn.Sigmoid()
         self.hasqiaverage_score = nn.AdaptiveAvgPool1d(1)  
-        self.haspiaverage_score = nn.AdaptiveAvgPool1d(1)  
             
-    def forward(self, x, hl): #hl:(B,6)
+    def forward(self, x): #hl:(B,6)
         B, Freq, T = x.size()
         x = x.permute(0,2,1) #(B, 257, T_length)->(B, T_length, 257) 
-        hl = hl.unsqueeze(1) #hl:(B,1,6)
-        hl_repeat = hl.repeat(1,T,1)
-        x_concate = torch.cat((x,hl_repeat), 2)
         
-        out, _ = self.blstm(x_concate) #(B,T, 2*hidden)
+        out, _ = self.blstm(x) #(B,T, 2*hidden)
         out = self.dropout(self.act_fn(self.linear1(out))).transpose(0,1) #(T_length, B,  128) 
-        hasqi, _ = self.hasqiAtt_layer(out,out,out)
-        haspi, _ = self.haspiAtt_layer(out,out,out) 
-        hasqi, haspi = hasqi.transpose(0,1), haspi.transpose(0,1) #(B, T_length, 128)  
-        hasqi, haspi = self.hasqiframe_score(hasqi), self.haspiframe_score(haspi) #(B, T_length, 1) 
-        hasqi, haspi = self.sigmoid(hasqi), self.sigmoid(haspi) #pass a sigmoid
-        hasqi_fram, haspi_fram = hasqi.permute(0,2,1), haspi.permute(0,2,1) #(B, 1, T_length) 
-        hasqi_avg, haspi_avg = self.hasqiaverage_score(hasqi_fram), self.haspiaverage_score(haspi_fram)  #(B,1,1)
+        hasqi, _ = self.hasqiAtt_layer(out,out,out) 
+        hasqi = hasqi.transpose(0,1) #(B, T_length, 128)  
+        hasqi = self.hasqiframe_score(hasqi) #(B, T_length, 1) 
+        hasqi = self.sigmoid(hasqi) #pass a sigmoid
+        hasqi_fram = hasqi.permute(0,2,1) #(B, 1, T_length) 
+        hasqi_avg = self.hasqiaverage_score(hasqi_fram)  #(B,1,1)
         
-        return hasqi_fram, haspi_fram, hasqi_avg.squeeze(1), haspi_avg.squeeze(1) #(B, 1, T_length) (B,1) 
+        return hasqi_fram, hasqi_avg.squeeze(1) #(B, 1, T_length) (B,1) 
        

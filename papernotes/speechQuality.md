@@ -16,6 +16,22 @@ CNN + 注意力（受限的的注意力，Restricted Self-Attention） + 时间�
 
 考虑 topk 的损失（扩大分数区间，如将分数区间扩大到0.4或者0.5，将top k （或者全部）的概率对应的点的概率乘上对应的点与真实值计算损失，压低非top k 的点对应的概率）
 
+训练语音质量网络和语音增强模型的数据应该需要事先分开
+
+在训练classifier时并不是准确率越高，预测效果越好
+
+lstmClassifier：step 0.2，EDMLoss + FrameLoss，smooth=True
+
+cnn训练时，使用两个1×1卷积+1个3×3卷积比2个3×3卷积的效果好，卷积块中的池化层选择，128, 64
+
+SENet的效果似乎更好
+
+Focal Loss: 
+$$
+{\left( {{p_t}} \right)^\gamma }\log \left( {{p_t} + 1} \right)
+$$
+其中，$p_t$ 为计算得到的 EMD 损失，$p_t$ 越大，表示分类越不自信，所以为其分配更大的损失。
+
 ## 实验发现
 
 > [!IMPORTANT]
@@ -41,6 +57,10 @@ CNN + 注意力（受限的的注意力，Restricted Self-Attention） + 时间�
 > [!NOTE]
 >
 > 如果训练时发现损失突然变为 Nan，检查计算损失时是否包含了sqrt操作（sqrt求导时根号下的值会放在分母中），需要保证sqrt中的值为正值（加上一个很小的值如 1e-6）
+
+> [!NOTE]
+>
+> 使用CNN2d会大量增加计算量，同时对模型的增益效果有限
 
 
 
