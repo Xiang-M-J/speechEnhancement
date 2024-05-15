@@ -6,6 +6,7 @@ import torch
 from models import QualityNet, Cnn, TCN, QualityNetAttn, QualityNetClassifier, CnnClass, Cnn2d, CnnAttn
 from trainer import Trainer
 from trainerClassifier import TrainerC
+from trainerSe import TrainerSE
 from trainer_utils import load_dataset, Args
 
 
@@ -41,32 +42,40 @@ def load_model(args: Args):
     return model
 
 
+def seed_everything(seed):
+    torch.manual_seed(seed)
+    torch.cuda.manual_seed_all(seed)
+    np.random.seed(seed)
+    random.seed(seed)
+    torch.backends.cudnn.deterministic = True
+
+
 if __name__ == '__main__':
-    arg = Args("cnn")
+    arg = Args("lstmClass")
     arg.epochs = 35
-    arg.batch_size = 128
-    arg.save = True
+    arg.batch_size = 32
+    arg.save = False
     arg.lr = 1e-3
     # arg.step_size = 5
-    # 训练 CNN / tcn
     arg.score_step = 0.2
-    arg.optimizer_type = 1
-    arg.enableFrame = False
+    # 训练 CNN / tcn
+    # arg.optimizer_type = 1
+    # arg.enableFrame = False
+    arg.focal_gamma = 2
 
     arg.smooth = True
     if arg.save:
         arg.write(arg.model_name)
     print(arg)
-    torch.manual_seed(arg.random_seed)
-    np.random.seed(arg.random_seed)
-    random.seed(arg.random_seed)
+
     forget_gate_bias = -3
+    seed_everything(arg.random_seed)
 
     # x: (batch_size, seq_len, feature_dim), y1: (batch_size,), y2: (batch_size, seq_len)
-    train_dataset, valid_dataset, test_dataset = load_dataset("wav_train_qn.list", arg.spilt_rate, arg.fft_size,
+    train_dataset, valid_dataset, test_dataset = load_dataset("wav_polqa_mini.list", arg.spilt_rate, arg.fft_size,
                                                               arg.hop_size)
-    trainer = Trainer(arg)
-    # trainer = TrainerC(arg)
+    # trainer = Trainer(arg)
+    trainer = TrainerC(arg)
     model = load_model(arg)
     model = trainer.train(model, train_dataset=train_dataset, valid_dataset=valid_dataset)
     trainer.test(test_dataset=test_dataset, model=model)

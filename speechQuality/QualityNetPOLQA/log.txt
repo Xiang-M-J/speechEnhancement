@@ -420,3 +420,27 @@ lstmA20240515_003916	2024-05-15 07:18:05	398.81
 train loss: 0.1107, valid loss: 0.1421 
 test loss: 0.1363, mse: 0.1368,  lcc: 0.9571, srcc: 0.9333 
 test loss: 0.1378, mse: 0.1300,  lcc: 0.9595, srcc: 0.9287 
+lstmClass20240515_160038	2024-05-15 16:08:41	8.06
+train loss: 0.4864, valid loss: 0.4453 train acc: 36.7500, valid acc: 36.5000 
+test loss: 0.5250, mse: 0.3413, test acc: 0.3450 lcc: 0.8716, srcc: 0.8421 
+lstmClass20240515_161025	2024-05-15 16:18:16	7.85
+train loss: 0.3919, valid loss: 0.4059 train acc: 40.8125, valid acc: 41.5000 
+test loss: 0.3996, mse: 0.2092, test acc: 0.3500 lcc: 0.9235, srcc: 0.8787 
+lstmClass20240515_161921	2024-05-15 16:27:14	7.88
+train loss: 0.2657, valid loss: 0.2599 train acc: 40.7500, valid acc: 41.5000 
+test loss: 0.2705, mse: 0.2982, test acc: 0.4050 lcc: 0.8941, srcc: 0.8802 
+lstmClass20240515_162900	2024-05-15 16:36:59	7.97
+train loss: 0.3919, valid loss: 0.4059 train acc: 40.8125, valid acc: 41.5000 
+test loss: 0.3996, mse: 0.2092, test acc: 0.3500 lcc: 0.9235, srcc: 0.8787 
+lstmClass20240515_164058	2024-05-15 16:48:47	7.82
+train loss: 0.9039, valid loss: 1.0249 train acc: 40.4375, valid acc: 40.5000 
+test loss: 1.0927, mse: 0.2214, test acc: 0.3550 lcc: 0.9187, srcc: 0.8694 
+lstmClass20240515_164957	2024-05-15 16:58:32	8.58
+train loss: 0.1278, valid loss: 0.1582 train acc: 39.3125, valid acc: 41.5000 
+test loss: 0.1699, mse: 0.2581, test acc: 0.3900 lcc: 0.9049, srcc: 0.8809 
+lstmClass20240515_170232	2024-05-15 17:16:29	13.94
+train loss: 0.4067, valid loss: 0.4259 train acc: 39.3750, valid acc: 43.0000 
+test loss: 0.4618, mse: 0.2428, test acc: 0.3300 lcc: 0.9106, srcc: 0.8673 
+lstmClass20240515_171716	2024-05-15 17:25:15	7.98
+train loss: 0.3231, valid loss: 0.3512 train acc: 42.1875, valid acc: 37.0000 
+test loss: 0.3410, mse: 0.2720, test acc: 0.3450 lcc: 0.9024, srcc: 0.8623 

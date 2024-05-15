@@ -30,7 +30,7 @@ Focal Loss:
 $$
 {\left( {{p_t}} \right)^\gamma }\log \left( {{p_t} + 1} \right)
 $$
-其中，$p_t$ 为计算得到的 EMD 损失，$p_t$ 越大，表示分类越不自信，所以为其分配更大的损失。
+其中，$p_t$ 为计算得到的 EMD 损失，$p_t$ 越大，表示分类越不自信，所以为其分配更大的损失。对avgloss使用focal、对Frame使用EDMLoss，效果更好。
 
 ## 实验发现
 

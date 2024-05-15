@@ -4,12 +4,15 @@ import os
 win_size = 512
 fft_num = 512
 win_shift = 256
-
-loss_dir = './LOSS/wsj0_si84_300h_dpcrn_noncprs_loss.mat'
-batch_size = 4
-epochs = 50
+chunk_length = int(8.0*16000)
+json_dir = '/media/luoxiaoxue/datasets/VB_DEMAND_48K/json'
+file_path = '/media/luoxiaoxue/datasets/VB_DEMAND_48K'
+loss_dir = './LOSS/vb_lstm_cprs_loss.mat'
+batch_size = 16
+epochs = 60
 lr = 1e-3
-model_best_path = './BEST_MODEL/wsj0_si84_300h_dpcrn_noncprs_model.pth'
+model_best_path = './BEST_MODEL/vb_lstm_cprs_model.pth'
+
 check_point_path = './models'
 loss_path = "./loss"
 metric_path = "./metircs"

@@ -3,7 +3,6 @@ import time
 
 import matplotlib.pyplot as plt
 import numpy as np
-import scipy
 import torch
 import torch.nn as nn
 from torch.utils.data import dataloader
@@ -11,7 +10,6 @@ from torch.utils.tensorboard import SummaryWriter
 from tqdm import tqdm
 
 from trainer_utils import Args, EarlyStopping, Metric, plot_metric
-from utils import FrameMse
 
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
 
@@ -22,6 +20,8 @@ class TrainerSE:
     """
 
     def __init__(self, args: Args):
+        if not args.model_type.endswith("_se"):
+            raise
         self.args: Args = args
         self.optimizer_type = args.optimizer_type
         self.model_path = f"models/{args.model_name}/"
@@ -37,7 +37,8 @@ class TrainerSE:
         self.test_acc = []
         if args.save:
             self.check_dir()
-            self.writer = SummaryWriter("runs/" + self.args.model_type + time.strftime('%Y%m%d_%H%M%S', time.localtime()))
+            self.writer = SummaryWriter(
+                "runs/" + self.args.model_type + time.strftime('%Y%m%d_%H%M%S', time.localtime()))
 
     def check_dir(self):
         """
@@ -78,36 +79,29 @@ class TrainerSE:
         else:
             raise NotImplementedError
 
-    def get_loss_fn(self):
-        loss1 = nn.MSELoss()
-        loss2 = FrameMse(self.args.enableFrame)
-        loss1.to(device=device)
-        loss2.to(device=device)
-        return loss1, loss2
+    @staticmethod
+    def get_loss_fn():
+        loss_fn = nn.MSELoss()
+        loss_fn.to(device=device)
+        return loss_fn
 
-    def train_step(self, model, x, y, loss1, loss2, optimizer):
-        y1 = y[0]
-        y2 = y[1]
-        frameS, avgS = model(x)
-        l1 = loss1(avgS.squeeze_(-1), y1)
-        l2 = loss2(frameS, y2)
-        loss = l1 + l2
+    @staticmethod
+    def train_step(model, x, y, loss_fn, optimizer):
+        y_pred = model(x)
+        loss = loss_fn(y_pred, y)
         optimizer.zero_grad()
         loss.backward()
         optimizer.step()
         return loss.cpu().detach().numpy()
 
-    def predict(self, model, x, y, loss1, loss2):
+    @staticmethod
+    def predict(model, x, y, loss_fn):
         """
-        Return loss, predict score, true score
+        Return loss, y_pred
         """
-        y1 = y[0]
-        y2 = y[1]
-        frameS, avgS = model(x)
-        l1 = loss1(avgS.squeeze_(-1), y1)
-        l2 = loss2(frameS, y2)
-        loss = l1 + l2
-        return loss.cpu().detach().numpy(), avgS.cpu().detach().numpy(), y1.cpu().detach().numpy()
+        y_pred = model(x)
+        loss = loss_fn(y_pred, y)
+        return loss.cpu().detach().numpy(), y_pred.cpu().detach()
 
     def train(self, model: nn.Module, train_dataset, valid_dataset):
         print("begin train")
@@ -126,8 +120,6 @@ class TrainerSE:
             batch_size=self.batch_size,
             shuffle=self.args.shuffle
         )
-        train_num = len(train_dataset)
-        valid_num = len(valid_dataset)
 
         train_step = len(train_loader)
         valid_step = len(valid_loader)
@@ -144,7 +136,7 @@ class TrainerSE:
         scheduler = self.get_scheduler(optimizer, arg=self.args)
 
         # 设置损失函数和模型
-        loss1, loss2 = self.get_loss_fn()
+        loss_fn = self.get_loss_fn()
         model = model.to(device)
 
         # 保存一些信息
@@ -154,8 +146,6 @@ class TrainerSE:
             try:
                 dummy_input = torch.rand(self.args.batch_size, 128, self.args.fft_size // 2 + 1).to(device)
                 if self.args.model_type == "lstmA":
-                    # mask = torch.randn([512, 512]).to(device)
-                    # self.writer.add_graph(model, dummy_input)
                     pass
                 else:
                     self.writer.add_graph(model, dummy_input)
@@ -173,7 +163,7 @@ class TrainerSE:
                 model.train()
                 loop_train = tqdm(enumerate(train_loader), leave=False)
                 for batch_idx, (x, y) in loop_train:
-                    loss = self.train_step(model, x, y, loss1, loss2, optimizer)
+                    loss = self.train_step(model, x, y, loss_fn, optimizer)
                     train_loss += loss
 
                     loop_train.set_description_str(f'Training [{epoch + 1}/{self.epochs}]')
@@ -183,7 +173,7 @@ class TrainerSE:
                 with torch.no_grad():
                     loop_valid = tqdm(enumerate(valid_loader), leave=False)
                     for batch_idx, (x, y) in loop_valid:
-                        loss, _, _ = self.predict(model, x, y, loss1, loss2)
+                        loss, _ = self.predict(model, x, y, loss_fn)
                         valid_loss += loss
                         loop_valid.set_description_str(f'Validating [{epoch + 1}/{self.epochs}]')
                         loop_valid.set_postfix_str("step: {}/{} loss: {:.4f}".format(batch_idx, valid_step, loss))
@@ -288,40 +278,24 @@ class TrainerSE:
         metric = Metric(mode="test")
         test_step = len(test_loader)
 
-        POLQA_Predict = np.zeros([test_num, ])
-        POLQA_True = np.zeros([test_num, ])
-        idx = 0
-        loss1, loss2 = self.get_loss_fn()
+        loss_fn = self.get_loss_fn()
         test_loss = 0
         with torch.no_grad():
             for batch_idx, (x, y) in tqdm(enumerate(test_loader)):
-                batch = x.shape[0]
-                loss, est_polqa, true_polqa = self.predict(model, x, y, loss1, loss2)
+                loss, _ = self.predict(model, x, y, loss_fn)
                 test_loss += loss
-                POLQA_Predict[idx: idx + batch] = est_polqa
-                POLQA_True[idx: idx + batch] = true_polqa
-                idx += batch
 
         metric.test_loss = test_loss / test_step
         print("Test loss: {:.4f}".format(metric.test_loss))
-        metric.mse = np.mean((POLQA_True - POLQA_Predict) ** 2)
-        print('Test error= %f' % metric.mse)
-        metric.lcc = np.corrcoef(POLQA_True, POLQA_Predict)
-        print('Linear correlation coefficient= %f' % float(metric.lcc[0][1]))
 
-        metric.srcc = scipy.stats.spearmanr(POLQA_True.T, POLQA_Predict.T)
-        print('Spearman rank correlation coefficient= %f' % metric.srcc[0])
         with open("log.txt", mode='a', encoding="utf-8") as f:
             f.write("test loss: {:.4f}, lcc: {:.4f}, srcc: {:.4f} \n".format(metric.test_loss, float(metric.lcc[0][1]),
                                                                              metric.srcc[0]))
 
         if self.args.save:
-            M = np.max([np.max(POLQA_Predict), 5])
             plt.clf()
             fig = plt.figure(1)
-            plt.scatter(POLQA_True, POLQA_Predict, s=3)
-            plt.xlim([0, M])
-            plt.ylim([0, M])
+
             plt.xlabel('True PESQ')
             plt.ylabel('Predicted PESQ')
             plt.title('LCC= %f, SRCC= %f, MSE= %f' % (float(metric.lcc[0][1]), metric.srcc[0], metric.mse))
@@ -330,10 +304,7 @@ class TrainerSE:
             self.writer.add_figure("predict score", fig)
             np.save(self.data_path + "test_metric.npy", metric.items())
         else:
-            plt.scatter(POLQA_True, POLQA_Predict, s=6)
-            plt.show()
-            plt.pause(2)
-            plt.ioff()
+            pass
 
     def test(self, test_dataset, model: nn.Module = None, model_path: str = None):
 

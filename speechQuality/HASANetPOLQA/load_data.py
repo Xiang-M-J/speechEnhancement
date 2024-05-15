@@ -55,7 +55,7 @@ class Dataset_train(Dataset):
         self.HASPIscore = self.data_list['HASPI'].astype('float32').to_numpy()
                       
     def __getitem__(self, idx):
-        ref = wavfile.read(self.ref[idx])[-1].astype('float32')/maxv
+        ref = wavfile.read(self.ref[idx])[-1].astype('float32')/maxv    # wavfile 读取的音频为int16类型数据，因此需要除以np.int16的最大值来转为浮点数
         data = wavfile.read(self.data[idx])[-1].astype('float32')/maxv
         Sxx_ref, Sxx_data = make_spectrum(ref), make_spectrum(data)
         hl = self.hl[idx]

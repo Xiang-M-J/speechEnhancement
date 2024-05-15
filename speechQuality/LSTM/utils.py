@@ -52,7 +52,6 @@ def getStftSpec(wav_path):
                         window=torch.hann_window(win_size), return_complex=True).T
     feat_x, phase_x = torch.abs(feat_x), torch.angle(feat_x)
     feat_x = torch.sqrt(feat_x)  # 压缩幅度
-    feat_x = torch.stack((feat_x * torch.cos(phase_x), feat_x * torch.sin(phase_x)), dim=0)
     return feat_x, phase_x
 
 

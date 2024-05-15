@@ -9,7 +9,7 @@ whaspi: 1.5
 logmag: False
 
 model: BLSTM_frame_sig_att
-input_size: 263
+input_size: 257
 hidden_size: 100
 num_layers: 1
 dropout: 0 

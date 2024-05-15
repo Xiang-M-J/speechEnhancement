@@ -12,7 +12,7 @@ gamma: 0.3
 hop_size: 256
 load_weight: false
 lr: 0.001
-model_name: cnn20240515_090531
+model_name: cnn20240515_100107
 model_type: cnn
 optimizer_type: 1
 patience: 5

@@ -62,6 +62,7 @@ class Args:
                  smooth=True,
                  cnn_filter=128,
                  cnn_feature=64,
+                 focal_gamma=2,
                  ):
         """
         Args:
@@ -81,6 +82,7 @@ class Args:
             score_step: 分数分布步长
             enableFrame: 是否允许 Frame loss Default: True
             smooth: 是否平滑标签 Default: True
+            focal_gamma: focal loss 中的gamma
         """
 
         # 基础参数
@@ -100,6 +102,7 @@ class Args:
         self.enableFrame = enableFrame
         self.smooth = smooth
         self.score_step = score_step
+        self.focal_gamma = focal_gamma
 
         # cnn 相关
         self.cnn_filter = cnn_filter
@@ -173,6 +176,7 @@ class Metric:
             self.mse = 0.
             self.lcc = None
             self.srcc = None
+            self.pesq = None
             if with_acc:
                 self.test_acc = 0
         else:
@@ -199,6 +203,10 @@ class Metric:
         #     data = {"test_loss": self.test_loss, "mse": self.mse, "lcc": self.lcc, "srcc": self.srcc}
         data = self.__dict__.copy()
         data.pop("mode")
+        key_list = list(data.keys())
+        for key in key_list:
+            if data[key] is None:
+                data.pop(key)
         return data
 
     def __str__(self) -> str:

@@ -5,7 +5,7 @@ import torch.utils
 from utils import DNSDataset, collate_fn
 from torch.utils.data import DataLoader, random_split
 from config import batch_size, lr, epochs, loss_path, fft_num, win_shift, win_size
-from DPCRN import dpcrn
+from CRN import crn_net
 from tqdm import tqdm
 import numpy as np
 path = r"D:\work\speechEnhancement\speechQuality\QualityNetPOLQA\wav_train_se.list"
@@ -22,7 +22,7 @@ test_loader = DataLoader(test_dataset, batch_size=batch_size, shuffle=True)
 
 writer = SummaryWriter()
 
-model = dpcrn()
+model = crn_net(fft_num)
 model = model.to(device=device)
 loss_fn = torch.nn.MSELoss()
 loss_fn = loss_fn.to(device=device)
@@ -60,7 +60,7 @@ for epoch in tqdm(range(epochs)):
     model.eval()
     
     with torch.no_grad():
-        for i, batch in enumerate(valid_loader):
+        for i, batch in tqdm(enumerate(valid_loader)):
             x = batch[0].to(device)
             y = batch[1].to(device)
             y_pred = model(x)
@@ -75,7 +75,7 @@ for epoch in tqdm(range(epochs)):
     last_valid_loss = valid_loss
 
     if (epoch+1) % 5 == 0:
-        torch.save(model, f"CP_dir/{epoch+1}.pt")
+        torch.save(model, f"models/{epoch+1}.pt")
 
     writer.add_scalar("train loss", train_loss/train_step, epoch)
     writer.add_scalar("valid loss", valid_loss/train_step, epoch)
@@ -93,7 +93,7 @@ for epoch in tqdm(range(epochs)):
 
     writer.add_scalar("lr", lr, epoch)
 
-torch.save(model, "CP_dir/final.pt")
+torch.save(model, "models/final.pt")
 
 # test phase
 

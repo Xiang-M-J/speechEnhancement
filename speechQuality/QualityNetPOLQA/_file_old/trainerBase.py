@@ -1,5 +1,6 @@
 import os
 import time
+import abc
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -11,19 +12,17 @@ from torch.utils.tensorboard import SummaryWriter
 from tqdm import tqdm
 
 from trainer_utils import Args, EarlyStopping, Metric, plot_metric
-from losses import FrameMse
+from utils import FrameMse
 
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
 
 
-class Trainer:
+class TrainerBase(abc.ABC):
     """
     训练
     """
 
     def __init__(self, args: Args):
-        if "Class" in args.model_type:
-            raise TypeError("Error model type")
         self.args: Args = args
         self.optimizer_type = args.optimizer_type
         self.model_path = f"models/{args.model_name}/"
@@ -81,45 +80,21 @@ class Trainer:
         else:
             raise NotImplementedError
 
+    @abc.abstractclassmethod
     def get_loss_fn(self):
-        loss1 = nn.MSELoss()
-        loss2 = FrameMse(self.args.enableFrame)
-        loss1.to(device=device)
-        loss2.to(device=device)
-        return loss1, loss2
+        pass
+    
+    @abc.abstractclassmethod
+    def train_step(self, model, x, y, loss, optimizer):
+        pass
 
-    def train_step(self, model, x, y, loss1, loss2, optimizer):
-        y1 = y[0]
-        y2 = y[1]
-        if "cnn" in self.args.model_type:
-            avgS = model(x)
-            loss = loss1(avgS.squeeze(-1), y1)
-        else:
-            frameS, avgS = model(x)
-            l1 = loss1(avgS.squeeze(-1), y1)
-            l2 = loss2(frameS, y2)
-            loss = l1 + l2
 
-        optimizer.zero_grad()
-        loss.backward()
-        optimizer.step()
-        return loss.cpu().detach().numpy()
-
+    @abc.abstractclassmethod
     def predict(self, model, x, y, loss1, loss2):
         """
         Return loss, predict score, true score
         """
-        y1 = y[0]
-        y2 = y[1]
-        if "cnn" in self.args.model_type:
-            avgS = model(x)
-            loss = loss1(avgS.squeeze(-1), y1)
-        else:
-            frameS, avgS = model(x)
-            l1 = loss1(avgS.squeeze(-1), y1)
-            l2 = loss2(frameS, y2)
-            loss = l1 + l2
-        return loss.cpu().detach().numpy(), avgS.squeeze(-1).cpu().detach().numpy(), y1.cpu().detach().numpy()
+        pass
 
     def train(self, model: nn.Module, train_dataset, valid_dataset):
         print("begin train")

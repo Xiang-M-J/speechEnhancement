@@ -11,8 +11,10 @@ from torch.utils.tensorboard import SummaryWriter
 from tqdm import tqdm
 
 from trainer_utils import Args, EarlyStopping, Metric, plot_metric
-from utils import EDMLoss, FrameEDMLoss, accurate_num_cal, oneHotToFloat, AvgCrossEntropyLoss, FrameCrossEntropyLoss, \
-    disError, topKError, shiftErrorWithTarget
+from utils import accurate_num_cal, oneHotToFloat
+
+from losses import EDMLoss, FrameEDMLoss, AvgCrossEntropyLoss, FrameCrossEntropyLoss, \
+    disLoss, topKLoss, shiftLossWithTarget, FocalEDMLoss, FocalFrameEDMLoss
 
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
 
@@ -83,13 +85,15 @@ class TrainerC:
             raise NotImplementedError
 
     def get_loss_fn(self):
-        loss1 = EDMLoss(self.args.score_step, self.args.smooth)
+        # loss1 = EDMLoss(self.args.score_step, self.args.smooth)
         # loss1 = AvgCrossEntropyLoss(step=self.args.score_step)
+        loss1 = FocalEDMLoss(self.args.score_step, self.args.smooth, self.args.focal_gamma)
         loss2 = FrameEDMLoss(smooth=self.args.smooth, enable=self.args.enableFrame, step=self.args.score_step)
         # loss2 = nn.MSELoss(reduction='mean')
         # loss2 = FrameCrossEntropyLoss(enable=self.args.enableFrame, step=self.args.score_step)
+        # loss2 = FocalFrameEDMLoss(self.args.score_step, self.args.smooth, self.args.enableFrame, self.args.focal_gamma)
         loss3 = AvgCrossEntropyLoss(step=self.args.score_step)
-        loss4 = shiftErrorWithTarget(self.args.score_step, 3)
+        loss4 = shiftLossWithTarget(self.args.score_step, 3)
         loss1.to(device=device)
         loss2.to(device=device)
         loss3.to(device=device)
@@ -106,8 +110,8 @@ class TrainerC:
         frameS, avgS = model(x)
         l1 = loss1(avgS.squeeze(-1), y1)
         l2 = loss2(frameS, y2)
-        l3 = loss3(avgS.squeeze(-1), y1)
-        l4 = loss4(avgS.squeeze(-1), y1)
+        # l3 = loss3(avgS.squeeze(-1), y1)
+        # l4 = loss4(avgS.squeeze(-1), y1)
         # l2 = loss2(avgS.squeeze(-1), y1)
         loss = l1 + l2
         # loss = loss1(avgS, y1)
@@ -131,9 +135,9 @@ class TrainerC:
         accurate_num = accurate_num_cal(avgS, y1, self.args.score_step)
         l1 = loss1(avgS.squeeze(-1), y1)
         l2 = loss2(frameS, y2)
-        l3 = loss3(avgS.squeeze(-1), y1)
+        # l3 = loss3(avgS.squeeze(-1), y1)
         # l2 = loss2(avgS.squeeze(-1), y1)
-        loss = l1 + l2 + l3
+        loss = l1 + l2
         return loss.cpu().detach().numpy(), oneHotToFloat(avgS.cpu().detach().numpy(),
                                                           self.args.score_step), y1.cpu().detach().numpy(), accurate_num
 
