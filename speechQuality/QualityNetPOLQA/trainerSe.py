@@ -3,13 +3,15 @@ import time
 
 import matplotlib.pyplot as plt
 import numpy as np
+import soundfile
 import torch
 import torch.nn as nn
 from torch.utils.data import dataloader
 from torch.utils.tensorboard import SummaryWriter
 from tqdm import tqdm
 
-from trainer_utils import Args, EarlyStopping, Metric, plot_metric
+from trainer_utils import Args, EarlyStopping, Metric, plot_metric, plot_spectrogram
+from utils import getStftSpec, spec2wav
 
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
 
@@ -20,8 +22,9 @@ class TrainerSE:
     """
 
     def __init__(self, args: Args):
+
         if not args.model_type.endswith("_se"):
-            raise
+            raise ValueError("Model type must end with '_se'")
         self.args: Args = args
         self.optimizer_type = args.optimizer_type
         self.model_path = f"models/{args.model_name}/"
@@ -30,6 +33,7 @@ class TrainerSE:
         self.result_path = f"results/{args.model_name}/"  # 结果保存路径（分为数据和图片）
         self.image_path = self.result_path + "images/"
         self.data_path = self.result_path + "data/"
+        self.inference_result_path = f"inference_results/{args.model_name}"
         self.batch_size = args.batch_size
         self.epochs = args.epochs
         self.save_model_epoch = args.save_model_epoch
@@ -51,6 +55,8 @@ class TrainerSE:
             os.makedirs(self.image_path)
         if not os.path.exists(self.data_path):
             os.makedirs(self.data_path)
+        # if not os.path.exists(self.inference_result_path):
+        #     os.makedirs(self.inference_result_path)
 
     def get_optimizer(self, parameter, lr):
         if self.optimizer_type == 0:
@@ -87,6 +93,8 @@ class TrainerSE:
 
     @staticmethod
     def train_step(model, x, y, loss_fn, optimizer):
+        x = x.to(device)
+        y = y.to(device)
         y_pred = model(x)
         loss = loss_fn(y_pred, y)
         optimizer.zero_grad()
@@ -99,6 +107,8 @@ class TrainerSE:
         """
         Return loss, y_pred
         """
+        x = x.to(device)
+        y = y.to(device)
         y_pred = model(x)
         loss = loss_fn(y_pred, y)
         return loss.cpu().detach().numpy(), y_pred.cpu().detach()
@@ -144,7 +154,10 @@ class TrainerSE:
             self.writer.add_text("模型名", self.args.model_name)
             self.writer.add_text('超参数', str(self.args))
             try:
-                dummy_input = torch.rand(self.args.batch_size, 128, self.args.fft_size // 2 + 1).to(device)
+                if "dpcrn" in self.args.model_type:
+                    dummy_input = torch.rand(self.args.batch_size,2, 128, self.args.fft_size // 2 + 1).to(device)
+                else:
+                    dummy_input = torch.rand(self.args.batch_size, 128, self.args.fft_size // 2 + 1).to(device)
                 if self.args.model_type == "lstmA":
                     pass
                 else:
@@ -162,7 +175,7 @@ class TrainerSE:
                 valid_loss = 0
                 model.train()
                 loop_train = tqdm(enumerate(train_loader), leave=False)
-                for batch_idx, (x, y) in loop_train:
+                for batch_idx, (x, _, y, _) in loop_train:
                     loss = self.train_step(model, x, y, loss_fn, optimizer)
                     train_loss += loss
 
@@ -172,7 +185,7 @@ class TrainerSE:
                 model.eval()
                 with torch.no_grad():
                     loop_valid = tqdm(enumerate(valid_loader), leave=False)
-                    for batch_idx, (x, y) in loop_valid:
+                    for batch_idx, (x, _, y, _) in loop_valid:
                         loss, _ = self.predict(model, x, y, loss_fn)
                         valid_loss += loss
                         loop_valid.set_description_str(f'Validating [{epoch + 1}/{self.epochs}]')
@@ -280,28 +293,28 @@ class TrainerSE:
 
         loss_fn = self.get_loss_fn()
         test_loss = 0
+        predict_mos = []
         with torch.no_grad():
-            for batch_idx, (x, y) in tqdm(enumerate(test_loader)):
-                loss, _ = self.predict(model, x, y, loss_fn)
+            for batch_idx, (x, xp, y, yp) in tqdm(enumerate(test_loader)):
+                loss, est_x = self.predict(model, x, y, loss_fn)
                 test_loss += loss
 
         metric.test_loss = test_loss / test_step
         print("Test loss: {:.4f}".format(metric.test_loss))
 
         with open("log.txt", mode='a', encoding="utf-8") as f:
-            f.write("test loss: {:.4f}, lcc: {:.4f}, srcc: {:.4f} \n".format(metric.test_loss, float(metric.lcc[0][1]),
-                                                                             metric.srcc[0]))
+            f.write("test loss: {:.4f} \n".format(metric.test_loss))
 
         if self.args.save:
-            plt.clf()
-            fig = plt.figure(1)
-
-            plt.xlabel('True PESQ')
-            plt.ylabel('Predicted PESQ')
-            plt.title('LCC= %f, SRCC= %f, MSE= %f' % (float(metric.lcc[0][1]), metric.srcc[0], metric.mse))
-            plt.savefig(self.image_path + 'Scatter_plot.png', dpi=300)
-            self.writer.add_text("test metric", str(metric))
-            self.writer.add_figure("predict score", fig)
+            # plt.clf()
+            # fig = plt.figure(1)
+            #
+            # plt.xlabel('True PESQ')
+            # plt.ylabel('Predicted PESQ')
+            # plt.title('LCC= %f, SRCC= %f, MSE= %f' % (float(metric.lcc[0][1]), metric.srcc[0], metric.mse))
+            # plt.savefig(self.image_path + 'Scatter_plot.png', dpi=300)
+            # self.writer.add_text("test metric", str(metric))
+            # self.writer.add_figure("predict score", fig)
             np.save(self.data_path + "test_metric.npy", metric.items())
         else:
             pass
@@ -333,3 +346,34 @@ class TrainerSE:
 
         end_time = time.time()
         print('Test ran for %.2f minutes' % ((end_time - start_time) / 60.))
+
+    def inference_step(self, model, noise_wav_path, target_wav_path=None):
+        if not os.path.exists(self.inference_result_path):
+            os.makedirs(self.inference_result_path)
+        wav_name = noise_wav_path.split('\\')[-1].split('.')[0]
+        noise_wav, fs = soundfile.read(noise_wav_path)
+        fig1 = plot_spectrogram(noise_wav, fs, self.args.fft_size, self.args.hop_size,
+                                filename=wav_name + "_带噪语音语谱图",
+                                result_path=self.inference_result_path)
+        if target_wav_path is not None:
+            target_wav, fs = soundfile.read(target_wav_path)
+            fig2 = plot_spectrogram(target_wav, fs, self.args.fft_size, self.args.hop_size,
+                                    filename=wav_name + "_干净语音语谱图",
+                                    result_path=self.inference_result_path)
+
+        feat_x, phase_x = getStftSpec(noise_wav_path, self.args.fft_size, self.args.hop_size, self.args.fft_size)
+
+        with torch.no_grad():
+            est_x = model(feat_x.unsqueeze(0).to(device)).squeeze(0).cpu().detach()
+        est_wav = spec2wav(est_x, phase_x, self.args.fft_size, self.args.hop_size, self.args.fft_size)
+        fig3 = plot_spectrogram(est_wav.numpy(), 48000, self.args.fft_size, self.args.hop_size,
+                                filename=wav_name + "_增强语音语谱图",
+                                result_path=self.inference_result_path)
+
+        denoise_wav_path = wav_name + "_denoise.wav"
+        soundfile.write(os.path.join(self.inference_result_path, denoise_wav_path), est_wav, samplerate=48000)
+        if self.args.save:
+            self.writer.add_audio(wav_name, torch.from_numpy(noise_wav), sample_rate=48000)
+            if target_wav_path is not None:
+                self.writer.add_audio(wav_name + "_无噪声", torch.from_numpy(target_wav), sample_rate=48000)
+            self.writer.add_audio(wav_name + "_增强后", est_wav, sample_rate=48000)

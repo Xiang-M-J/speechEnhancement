@@ -85,9 +85,9 @@ class TrainerC:
             raise NotImplementedError
 
     def get_loss_fn(self):
-        # loss1 = EDMLoss(self.args.score_step, self.args.smooth)
+        loss1 = EDMLoss(self.args.score_step, self.args.smooth)
         # loss1 = AvgCrossEntropyLoss(step=self.args.score_step)
-        loss1 = FocalEDMLoss(self.args.score_step, self.args.smooth, self.args.focal_gamma)
+        # loss1 = FocalEDMLoss(self.args.score_step, self.args.smooth, self.args.focal_gamma)
         loss2 = FrameEDMLoss(smooth=self.args.smooth, enable=self.args.enableFrame, step=self.args.score_step)
         # loss2 = nn.MSELoss(reduction='mean')
         # loss2 = FrameCrossEntropyLoss(enable=self.args.enableFrame, step=self.args.score_step)

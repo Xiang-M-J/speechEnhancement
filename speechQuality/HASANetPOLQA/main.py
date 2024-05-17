@@ -47,9 +47,9 @@ def setup_seed(seed):
 
 if __name__ == '__main__':
     arg = Args("hasa")
-    arg.epochs = 15
-    arg.batch_size = 16
-    arg.save = False
+    arg.epochs = 35
+    arg.batch_size = 8
+    arg.save = True
     arg.lr = 1e-3
     # arg.step_size = 5
 

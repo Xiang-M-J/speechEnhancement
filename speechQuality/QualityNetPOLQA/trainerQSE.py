@@ -3,27 +3,29 @@ import time
 
 import matplotlib.pyplot as plt
 import numpy as np
-import scipy
+import soundfile
 import torch
 import torch.nn as nn
 from torch.utils.data import dataloader
 from torch.utils.tensorboard import SummaryWriter
 from tqdm import tqdm
 
-from trainer_utils import Args, EarlyStopping, Metric, plot_metric
-from losses import frame_mse
+from trainer_utils import Args, EarlyStopping, Metric, plot_metric, plot_spectrogram
+from utils import getStftSpec, spec2wav
+from losses import QNLoss
 
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
 
 
-class Trainer:
+class TrainerQSE:
     """
-    训练
+    训练语音增强模型
     """
 
     def __init__(self, args: Args):
-        if "Class" in args.model_type:
-            raise TypeError("Error model type")
+
+        if not args.model_type.endswith("_qse"):
+            raise ValueError("Model type must end with '_qse'")
         self.args: Args = args
         self.optimizer_type = args.optimizer_type
         self.model_path = f"models/{args.model_name}/"
@@ -32,6 +34,7 @@ class Trainer:
         self.result_path = f"results/{args.model_name}/"  # 结果保存路径（分为数据和图片）
         self.image_path = self.result_path + "images/"
         self.data_path = self.result_path + "data/"
+        self.inference_result_path = f"inference_results/{args.model_name}"
         self.batch_size = args.batch_size
         self.epochs = args.epochs
         self.save_model_epoch = args.save_model_epoch
@@ -46,12 +49,15 @@ class Trainer:
         """
         创建文件夹
         """
+
         if not os.path.exists(self.model_path):
             os.makedirs(self.model_path)
         if not os.path.exists(self.image_path):
             os.makedirs(self.image_path)
         if not os.path.exists(self.data_path):
             os.makedirs(self.data_path)
+        # if not os.path.exists(self.inference_result_path):
+        #     os.makedirs(self.inference_result_path)
 
     def get_optimizer(self, parameter, lr):
         if self.optimizer_type == 0:
@@ -80,39 +86,47 @@ class Trainer:
         else:
             raise NotImplementedError
 
-    def get_loss_fn(self):
-        loss1 = nn.MSELoss()
-        loss2 = frame_mse()
-        loss1.to(device=device)
-        loss2.to(device=device)
-        return loss1, loss2
+    @staticmethod
+    def get_loss_fn():
+        loss_fn = nn.MSELoss()
+        loss_fn.to(device=device)
+        return loss_fn
 
-    def train_step(self, model, x, y, loss1, loss2, optimizer):
-        y1 = y[0]
-        y2 = y[1]
-
-        frameS, avgS = model(x)
-        l1 = loss1(avgS.squeeze(-1), y1)
-        l2 = loss2(frameS, y2)
-        loss = l1 + l2
-
+    @staticmethod
+    def train_step(model, x, y, loss_fn, optimizer):
+        x = x.to(device)
+        y = y.to(device)
+        y_pred = model(x)
+        mag_pred = torch.pow(y_pred[:, 0, :, :], 2) + torch.pow(y_pred[:, 1, :, :], 2)
+        loss = loss_fn(mag_pred)
+        loss.requires_grad_(True)
         optimizer.zero_grad()
         loss.backward()
         optimizer.step()
-        return l1.cpu().detach().numpy(), l2.cpu().detach().numpy()
+        return loss.cpu().detach().numpy()
 
-    def predict(self, model, x, y, loss1, loss2):
+    @staticmethod
+    def predict(model, x, y, loss_fn):
         """
-        Return loss, predict score, true score
+        Return loss, y_pred
         """
-        y1 = y[0]
-        y2 = y[1]
-        frameS, avgS = model(x)
-        l1 = loss1(avgS.squeeze(-1), y1)
-        l2 = loss2(frameS, y2)
-        return l1.cpu().detach().numpy(), l2.cpu().detach().numpy(), avgS.squeeze(-1).cpu().detach().numpy(), y1.cpu().detach().numpy()
+        x = x.to(device)
+        y = y.to(device)
+        y_pred = model(x)
+        mag_pred = torch.pow(y_pred[:, 0, :, :], 2) + torch.pow(y_pred[:, 1, :, :], 2)
+        loss = loss_fn(mag_pred)
+        return loss.cpu().detach().numpy(), y_pred.cpu().detach()
 
-    def train(self, model: nn.Module, train_dataset, valid_dataset):
+    def freeze_parameters(self, model: nn.Module, names=None):
+        if names is None:
+            for name, parameter in model.named_parameters():
+                parameter.requires_grad = False
+        else:
+            for name, parameter in model.named_parameters():
+                if name in names:
+                    parameter.requires_grad = False
+
+    def train(self, model_se: nn.Module, model_qn: nn.Module, train_dataset, valid_dataset):
         print("begin train")
         # 设置一些参数
         best_valid_loss = 100.
@@ -136,73 +150,75 @@ class Trainer:
         # 设置优化器、早停止和scheduler
         if self.args.load_weight:
             # 修改
-            optimizer = self.get_optimizer(model.parameters(), self.lr)
+            optimizer = self.get_optimizer(model_se.parameters(), self.lr)
         else:
-            optimizer = self.get_optimizer(model.parameters(), self.lr)
+            optimizer = self.get_optimizer(model_se.parameters(), self.lr)
 
         early_stop = EarlyStopping(patience=self.args.patience, delta_loss=self.args.delta_loss)
 
         scheduler = self.get_scheduler(optimizer, arg=self.args)
 
         # 设置损失函数和模型
-        loss1, loss2 = self.get_loss_fn()
-        model = model.to(device)
+        # loss_fn = self.get_loss_fn()
+        model_se = model_se.to(device)
+        model_qn = model_qn.to(device)
+        model_qn.eval()
+        self.freeze_parameters(model=model_qn)
+        loss_fn = QNLoss(model_qn)
 
         # 保存一些信息
         if self.args.save:
             self.writer.add_text("模型名", self.args.model_name)
             self.writer.add_text('超参数', str(self.args))
             try:
-                dummy_input = torch.rand(self.args.batch_size, 128, self.args.fft_size // 2 + 1).to(device)
-                self.writer.add_graph(model, dummy_input)
+                if "dpcrn" in self.args.model_type:
+                    dummy_input = torch.rand(self.args.batch_size, 2, 128, self.args.fft_size // 2 + 1).to(device)
+                else:
+                    dummy_input = torch.rand(self.args.batch_size, 128, self.args.fft_size // 2 + 1).to(device)
+                if self.args.model_type == "lstmA":
+                    pass
+                else:
+                    self.writer.add_graph(model_se, dummy_input)
             except RuntimeError as e:
                 print(e)
 
         plt.ion()
         start_time = time.time()
-        metric.train_loss = [[], [], []]
-        metric.valid_loss = [[], [], []]
+
         # 训练开始
         try:
             for epoch in tqdm(range(self.epochs), ncols=100):
-                train_avg_loss = 0
-                valid_avg_loss = 0
-                train_frame_loss = 0
-                valid_frame_loss = 0
-                model.train()
+                train_loss = 0
+                valid_loss = 0
+                model_se.train()
                 loop_train = tqdm(enumerate(train_loader), leave=False)
-                for batch_idx, (x, y) in loop_train:
-                    l1, l2 = self.train_step(model, x, y, loss1, loss2, optimizer)
-                    train_avg_loss += l1
-                    train_frame_loss += l2
-                    loop_train.set_description_str(f'Training [{epoch + 1}/{self.epochs}]')
-                    loop_train.set_postfix_str("step: {}/{} loss: {:.4f} Avg loss: {:.4f} Frame loss: {:.4f}".format(batch_idx, train_step, l1+l2, l1, l2))
+                for batch_idx, (x, _, y, _) in loop_train:
+                    loss = self.train_step(model_se, x, y, loss_fn, optimizer)
+                    train_loss += loss
 
-                model.eval()
+                    loop_train.set_description_str(f'Training [{epoch + 1}/{self.epochs}]')
+                    loop_train.set_postfix_str("step: {}/{} loss: {:.4f}".format(batch_idx, train_step, loss))
+
+                model_se.eval()
                 with torch.no_grad():
                     loop_valid = tqdm(enumerate(valid_loader), leave=False)
-                    for batch_idx, (x, y) in loop_valid:
-                        l1, l2, _, _ = self.predict(model, x, y, loss1, loss2)
-                        valid_avg_loss += l1
-                        valid_frame_loss += l2
+                    for batch_idx, (x, _, y, _) in loop_valid:
+                        loss, _ = self.predict(model_se, x, y, loss_fn)
+                        valid_loss += loss
                         loop_valid.set_description_str(f'Validating [{epoch + 1}/{self.epochs}]')
-                        loop_valid.set_postfix_str("step: {}/{} loss: {:.4f}, Avg loss: {:.4f}, Frame loss: {:.4f}".format(batch_idx, valid_step, l1+l2, l1, l2))
+                        loop_valid.set_postfix_str("step: {}/{} loss: {:.4f}".format(batch_idx, valid_step, loss))
 
                 if self.args.scheduler_type != 0:
                     scheduler.step()
 
                 # 保存每个epoch的训练信息
-                metric.train_loss[0].append(train_avg_loss / train_step)
-                metric.valid_loss[0].append(valid_avg_loss / valid_step)
-                metric.train_loss[1].append(train_frame_loss / train_step)
-                metric.valid_loss[1].append(valid_frame_loss / valid_step)
-                metric.train_loss[2].append((train_frame_loss + train_avg_loss) / train_step)
-                metric.valid_loss[2].append((valid_frame_loss + valid_avg_loss) / valid_step)
+                metric.train_loss.append(train_loss / train_step)
+                metric.valid_loss.append(valid_loss / valid_step)
 
                 # 实时显示损失变化
                 plt.clf()
-                plt.plot(metric.train_loss[2])
-                plt.plot(metric.valid_loss[2])
+                plt.plot(metric.train_loss)
+                plt.plot(metric.valid_loss)
                 plt.ylabel("loss")
                 plt.xlabel("epoch")
                 plt.legend(["train loss", "valid loss"])
@@ -213,33 +229,28 @@ class Trainer:
                 if self.args.save:
                     if (epoch + 1) % self.save_model_epoch == 0:
                         tqdm.write(f"save model to {self.model_path}" + f"{epoch}.pt")
-                        torch.save(model, self.model_path + f"{epoch}.pt")
-                    self.writer.add_scalar('train loss', metric.train_loss[2][-1], epoch + 1)
-                    self.writer.add_scalar('valid loss', metric.valid_loss[2][-1], epoch + 1)
-                    self.writer.add_scalar('train avg loss', metric.train_loss[0][-1], epoch + 1)
-                    self.writer.add_scalar('valid avg loss', metric.valid_loss[0][-1], epoch + 1)
-                    self.writer.add_scalar('train frame loss', metric.train_loss[1][-1], epoch + 1)
-                    self.writer.add_scalar('valid frame loss', metric.valid_loss[1][-1], epoch + 1)
+                        torch.save(model_se, self.model_path + f"{epoch}.pt")
+                    self.writer.add_scalar('train loss', metric.train_loss[-1], epoch + 1)
+                    self.writer.add_scalar('valid loss', metric.valid_loss[-1], epoch + 1)
                     self.writer.add_scalar('lr', optimizer.param_groups[0]['lr'], epoch + 1)
                     np.save(os.path.join(self.data_path, "train_metric.npy"), metric.items())
                 tqdm.write(
-                    'Epoch {}:  train Loss:{:.4f} val Loss:{:.4f} train avg loss: {:.4f} valid avg loss: {:.4f}'.format(
-                        epoch + 1, metric.train_loss[2][-1], metric.valid_loss[2][-1],
-                        metric.train_loss[0][-1], metric.valid_loss[0][-1]))
+                    'Epoch {}:  train Loss:{:.4f}\t val Loss:{:.4f}'.format(
+                        epoch + 1, metric.train_loss[-1], metric.valid_loss[-1]))
 
-                if metric.valid_loss[2][-1] < best_valid_loss:
-                    tqdm.write(f"valid loss decrease from {best_valid_loss :.3f} to {metric.valid_loss[2][-1]:.3f}")
-                    best_valid_loss = metric.valid_loss[2][-1]
+                if metric.valid_loss[-1] < best_valid_loss:
+                    tqdm.write(f"valid loss decrease from {best_valid_loss :.3f} to {metric.valid_loss[-1]:.3f}")
+                    best_valid_loss = metric.valid_loss[-1]
                     metric.best_valid_loss = best_valid_loss
                     if self.args.save:
-                        torch.save(model, self.best_model_path)
+                        torch.save(model_se, self.best_model_path)
                         tqdm.write(f"saving model to {self.best_model_path}")
                 else:
                     tqdm.write(f"validation loss did not decrease from {best_valid_loss}")
 
-                if early_stop(metric.valid_loss[2][-1]):
+                if early_stop(metric.valid_loss[-1]):
                     if self.args.save:
-                        torch.save(model, self.final_model_path)
+                        torch.save(model_se, self.final_model_path)
                         tqdm.write(f"early stop..., saving model to {self.final_model_path}")
                     break
             # 训练结束时需要进行的工作
@@ -250,18 +261,18 @@ class Trainer:
                     self.args.model_name + f"\t{time.strftime('%Y-%m-%d %H:%M:%S', time.localtime())}\t" + "{:.2f}".format(
                         (end_time - start_time) / 60.) + "\n")
                 f.write(
-                    "train loss: {:.4f}, valid loss: {:.4f} \n".format(metric.train_loss[2][-1], metric.valid_loss[2][-1]))
+                    "train loss: {:.4f}, valid loss: {:.4f} \n".format(metric.train_loss[-1], metric.valid_loss[-1]))
             if self.args.save:
                 plt.clf()
-                torch.save(model, self.final_model_path)
+                torch.save(model_se, self.final_model_path)
                 tqdm.write(f"save model(final): {self.final_model_path}")
                 np.save(os.path.join(self.data_path, "train_metric.npy"), metric.items())
-                fig = plot_metric({"train_loss": metric.train_loss[2], "valid_loss": metric.valid_loss[2]},
+                fig = plot_metric({"train_loss": metric.train_loss, "valid_loss": metric.valid_loss},
                                   title="train and valid loss", result_path=self.image_path)
                 self.writer.add_figure("learn loss", fig)
                 self.writer.add_text("beat valid loss", f"{metric.best_valid_loss}")
                 self.writer.add_text("duration", "{:2f}".format((end_time - start_time) / 60.))
-            return model
+            return model_se
         except KeyboardInterrupt as e:
             tqdm.write("正在退出")
             # 训练结束时需要进行的工作
@@ -271,20 +282,20 @@ class Trainer:
                 f.write(
                     self.args.model_name + f"\t{time.strftime('%Y-%m-%d %H:%M:%S', time.localtime())}\t" + "{:.2f}".format(
                         (end_time - start_time) / 60.) + "\n")
-                f.write("train loss: {:.4f}, valid loss: {:.4f}\n".format(metric.train_loss[2][-1], metric.valid_loss[2][-1]))
+                f.write("train loss: {:.4f}, valid loss: {:.4f}\n".format(metric.train_loss[-1], metric.valid_loss[-1]))
             if self.args.save:
                 plt.clf()
-                torch.save(model, self.final_model_path)
+                torch.save(model_se, self.final_model_path)
                 tqdm.write(f"save model(final): {self.final_model_path}")
                 np.save(os.path.join(self.data_path, "train_metric.npy"), metric.items())
-                fig = plot_metric({"train_loss": metric.train_loss[2], "valid_loss": metric.valid_loss[2]},
+                fig = plot_metric({"train_loss": metric.train_loss, "valid_loss": metric.valid_loss},
                                   title="train and valid loss", result_path=self.image_path)
                 self.writer.add_figure("learn loss", fig)
                 self.writer.add_text("beat valid loss", f"{metric.best_valid_loss}")
                 self.writer.add_text("duration", "{:2f}".format((end_time - start_time) / 60.))
-            return model
+            return model_se
 
-    def test_step(self, model: nn.Module, test_loader, test_num):
+    def test_step(self, model: nn.Module, model_qn: nn.Module, test_loader, test_num):
         """
         Args:
             model: 模型
@@ -293,57 +304,40 @@ class Trainer:
         """
 
         model = model.to(device=device)
+        model_qn = model_qn.to(device=device)
+        model_qn.eval()
         model.eval()
+        self.freeze_parameters(model_qn)
         metric = Metric(mode="test")
         test_step = len(test_loader)
 
-        POLQA_Predict = np.zeros([test_num, ])
-        POLQA_True = np.zeros([test_num, ])
-        idx = 0
-        loss1, loss2 = self.get_loss_fn()
+        loss_fn = QNLoss(model_qn)
         test_loss = 0
+        predict_mos = []
         with torch.no_grad():
-            for batch_idx, (x, y) in tqdm(enumerate(test_loader)):
-                batch = x.shape[0]
-                l1, l2, est_polqa, true_polqa = self.predict(model, x, y, loss1, loss2)
-                loss = l1+l2
+            for batch_idx, (x, xp, y, yp) in tqdm(enumerate(test_loader)):
+                loss, est_x = self.predict(model, x, y, loss_fn)
                 test_loss += loss
-                POLQA_Predict[idx: idx + batch] = est_polqa
-                POLQA_True[idx: idx + batch] = true_polqa
-                idx += batch
 
         metric.test_loss = test_loss / test_step
         print("Test loss: {:.4f}".format(metric.test_loss))
-        metric.mse = np.mean((POLQA_True - POLQA_Predict) ** 2)
-        print('Test error= %f' % metric.mse)
-        metric.lcc = np.corrcoef(POLQA_True, POLQA_Predict)
-        print('Linear correlation coefficient= %f' % float(metric.lcc[0][1]))
 
-        metric.srcc = scipy.stats.spearmanr(POLQA_True.T, POLQA_Predict.T)
-        print('Spearman rank correlation coefficient= %f' % metric.srcc[0])
         with open("log.txt", mode='a', encoding="utf-8") as f:
-            f.write("test loss: {:.4f}, mse: {:.4f},  lcc: {:.4f}, srcc: {:.4f} \n"
-                    .format(metric.test_loss, metric.mse, float(metric.lcc[0][1]), metric.srcc[0]))
+            f.write("test loss: {:.4f} \n".format(metric.test_loss))
 
         if self.args.save:
-            M = np.max([np.max(POLQA_Predict), 5])
-            plt.clf()
-            fig = plt.figure(1)
-            plt.scatter(POLQA_True, POLQA_Predict, s=3)
-            plt.xlim([0, M])
-            plt.ylim([0, M])
-            plt.xlabel('True PESQ')
-            plt.ylabel('Predicted PESQ')
-            plt.title('LCC= %f, SRCC= %f, MSE= %f' % (float(metric.lcc[0][1]), metric.srcc[0], metric.mse))
-            plt.savefig(self.image_path + 'Scatter_plot.png', dpi=300)
-            self.writer.add_text("test metric", str(metric))
-            self.writer.add_figure("predict score", fig)
+            # plt.clf()
+            # fig = plt.figure(1)
+            #
+            # plt.xlabel('True PESQ')
+            # plt.ylabel('Predicted PESQ')
+            # plt.title('LCC= %f, SRCC= %f, MSE= %f' % (float(metric.lcc[0][1]), metric.srcc[0], metric.mse))
+            # plt.savefig(self.image_path + 'Scatter_plot.png', dpi=300)
+            # self.writer.add_text("test metric", str(metric))
+            # self.writer.add_figure("predict score", fig)
             np.save(self.data_path + "test_metric.npy", metric.items())
         else:
-            plt.scatter(POLQA_True, POLQA_Predict, s=6)
-            plt.show()
-            plt.pause(2)
-            plt.ioff()
+            pass
 
     def test(self, test_dataset, model: nn.Module = None, model_path: str = None):
 
@@ -372,3 +366,34 @@ class Trainer:
 
         end_time = time.time()
         print('Test ran for %.2f minutes' % ((end_time - start_time) / 60.))
+
+    def inference_step(self, model, noise_wav_path, target_wav_path=None):
+        if not os.path.exists(self.inference_result_path):
+            os.makedirs(self.inference_result_path)
+        wav_name = noise_wav_path.split('\\')[-1].split('.')[0]
+        noise_wav, fs = soundfile.read(noise_wav_path)
+        fig1 = plot_spectrogram(noise_wav, fs, self.args.fft_size, self.args.hop_size,
+                                filename=wav_name + "_带噪语音语谱图",
+                                result_path=self.inference_result_path)
+        if target_wav_path is not None:
+            target_wav, fs = soundfile.read(target_wav_path)
+            fig2 = plot_spectrogram(target_wav, fs, self.args.fft_size, self.args.hop_size,
+                                    filename=wav_name + "_干净语音语谱图",
+                                    result_path=self.inference_result_path)
+
+        feat_x, phase_x = getStftSpec(noise_wav_path, self.args.fft_size, self.args.hop_size, self.args.fft_size)
+
+        with torch.no_grad():
+            est_x = model(feat_x.unsqueeze(0).to(device)).squeeze(0).cpu().detach()
+        est_wav = spec2wav(est_x, phase_x, self.args.fft_size, self.args.hop_size, self.args.fft_size)
+        fig3 = plot_spectrogram(est_wav.numpy(), 48000, self.args.fft_size, self.args.hop_size,
+                                filename=wav_name + "_增强语音语谱图",
+                                result_path=self.inference_result_path)
+
+        denoise_wav_path = wav_name + "_denoise.wav"
+        soundfile.write(os.path.join(self.inference_result_path, denoise_wav_path), est_wav, samplerate=48000)
+        if self.args.save:
+            self.writer.add_audio(wav_name, torch.from_numpy(noise_wav), sample_rate=48000)
+            if target_wav_path is not None:
+                self.writer.add_audio(wav_name + "_无噪声", torch.from_numpy(target_wav), sample_rate=48000)
+            self.writer.add_audio(wav_name + "_增强后", est_wav, sample_rate=48000)

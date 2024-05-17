@@ -240,6 +240,20 @@ class shiftLossWithTarget(nn.Module):
         return non_pLoss
 
 
+class QNLoss(nn.Module):
+    def __init__(self, model):
+        super(QNLoss, self).__init__()
+        self.model = model
+
+    def forward(self, input):
+        with torch.no_grad():
+            score = self.model(input)
+        score = (score - 1.0) / 4.0  # 放缩在 0.2-1之间
+        score[score > 1.0] = 1.
+        score[score < 0.0] = 0.
+        return torch.sum(torch.pow(1 - score, 2))
+
+
 if __name__ == "__main__":
     step = 0.5
     p_est = torch.randn([4, 128, 8])

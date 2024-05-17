@@ -3,26 +3,8 @@ import random
 import numpy as np
 import torch
 
-from trainer import Trainer
-from trainerClassifier import TrainerC
-from trainerSe import TrainerSE
+from trainerQSE import TrainerQSE
 from trainer_utils import load_dataset_qn, Args, load_dataset_se, load_se_model, load_qn_model
-
-
-def load_model(args: Args):
-    if args.model_type.endswith('_se'):
-        return load_se_model(args)
-    else:
-        return load_qn_model(args)
-
-
-def load_trainer(args: Args):
-    if args.model_type.endswith('_se'):
-        return TrainerSE(args)
-    elif args.model_type.endswith('Class'):
-        return TrainerC(args)
-    else:
-        return Trainer(args)
 
 
 def load_pretrained_model(path):
@@ -30,15 +12,8 @@ def load_pretrained_model(path):
     return model
 
 
-def load_dataset(type, path, spilt_rate, fft_size=512, hop_size=256):
-    if type.endswith('_se'):
-        if not path.endswith("_se.list"):
-            raise ValueError("Path must end with _se")
-        return load_dataset_se(path, spilt_rate, fft_size, hop_size)
-    else:
-        if path.endswith("_se.list"):
-            raise ValueError("Path can not end with _se")
-        return load_dataset_qn(path, spilt_rate, fft_size, hop_size)
+def load_dataset(path, spilt_rate, fft_size=512, hop_size=256):
+    return load_dataset_se(path, spilt_rate, fft_size, hop_size)
 
 
 def seed_everything(seed):
@@ -50,14 +25,21 @@ def seed_everything(seed):
 
 
 if __name__ == '__main__':
-    arg = Args("dpcrn_se")
-    arg.epochs = 35
-    arg.batch_size = 8
+    path_se = r"D:\work\speechEnhancement\speechQuality\QualityNetPOLQA\models\dpcrn_se20240515_235913\final.pt"
+    path_qn = r"D:\work\speechEnhancement\speechQuality\QualityNetPOLQA\models\cnn20240515_100107\final.pt"
+    arg = Args("dpcrn_qse")
+    arg.model2_type = "cnn"
+    arg.epochs = 15
+    arg.batch_size = 12
     arg.save = True
     arg.lr = 1e-3
-    # arg.step_size = 5
+    arg.step_size = 5
     arg.delta_loss = 2e-4
 
+    if not arg.model_type.endswith("_qse"):
+        raise ValueError("Model type must end with '_qse'")
+    if arg.model2_type is None:
+        raise ValueError("model qn type cannot be none")
     # 训练 CNN / tcn
     # arg.optimizer_type = 1
     # arg.enableFrame = False
@@ -75,16 +57,16 @@ if __name__ == '__main__':
 
     # 加载用于预测polqa分数的数据集 x: (B, L, C), y1: (B,), y2: (B, L)
     # 加载用于训练语音增强模型的数据集 x: (B, L, C)  y: (B L C)
-    train_dataset, valid_dataset, test_dataset = load_dataset(arg.model_type, "wav_train_se.list", arg.spilt_rate,
+    train_dataset, valid_dataset, test_dataset = load_dataset("wav_train_se.list", arg.spilt_rate,
                                                               arg.fft_size,
                                                               arg.hop_size)
 
-    model = load_model(arg)
-    # model = load_pretrained_model(r"D:\work\speechEnhancement\speechQuality\QualityNetPOLQA\models\dpcrn_se20240515_235913\final.pt")
+    model_se = load_pretrained_model(path_se)
+    model_qn = load_pretrained_model(path_qn)
 
     # 当主模型名以_se结尾时，返回 TrainerSE，以Class结尾时，返回TrainerC，其余情况返回Trainer
-    trainer = load_trainer(arg)
+    trainer = TrainerQSE(arg)
 
-    model = trainer.train(model, train_dataset=train_dataset, valid_dataset=valid_dataset)
+    model = trainer.train(model_se, model_qn, train_dataset=train_dataset, valid_dataset=valid_dataset)
     trainer.test(test_dataset=test_dataset, model=model)
     # trainer.test(test_dataset=test_dataset, model_path=r"D:\work\speechEnhancement\speechQuality\QualityNetPOLQA\models\QN20240508_174129\best.pt")

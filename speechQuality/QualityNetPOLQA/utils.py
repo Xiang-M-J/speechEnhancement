@@ -2,6 +2,7 @@ import numpy as np
 import torch
 import torchaudio
 from torch.utils.data import Dataset
+import pesq
 
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
@@ -48,6 +49,73 @@ class DNSPOLQADataset(Dataset):
 
     def __len__(self):
         return len(self.wav)
+
+
+class DNSDataset(Dataset):
+    def __init__(self, files, fft_num, win_shift, win_size) -> None:
+        super().__init__()
+        self.noise_path = []
+        self.clean_path = []
+        for file in files:
+            noise, clean = file.split(",")
+            self.noise_path.append(noise)
+            self.clean_path.append(clean)
+        self.fft_num = fft_num
+        self.win_shift = win_shift
+        self.win_size = win_size
+
+    def __getitem__(self, index):
+        noisy_wav = self.noise_path[index]
+        clean_wav = self.clean_path[index]
+
+        pn_feat, pn_phase = getStftSpec(noisy_wav, self.fft_num, self.win_shift, self.win_size)
+        pc_feat, pc_phase = getStftSpec(clean_wav, self.fft_num, self.win_shift, self.win_size)
+
+        return pn_feat, pn_phase, pc_feat, pc_phase
+
+    def __len__(self):
+        return len(self.noise_path)
+
+
+def getStftSpec(wav_path, fft_num, win_shift, win_size):
+    """
+    处理数据
+    """
+    feat_wav = preprocess(wav_path)
+    feat_x = torch.stft(feat_wav, n_fft=fft_num, hop_length=win_shift, win_length=win_size,
+                        window=torch.hann_window(win_size), return_complex=True).T
+    feat_x, phase_x = torch.abs(feat_x), torch.angle(feat_x)
+    feat_x = torch.sqrt(feat_x)  # 压缩幅度
+    # 用于 dpcrn
+    feat_x = torch.stack((feat_x * torch.cos(phase_x), feat_x * torch.sin(phase_x)), dim=0)
+    return feat_x, phase_x
+
+
+def preprocess(wav_path):
+    """
+    预处理音频，约束波形幅度
+    """
+    wav = torchaudio.load(wav_path)[0]
+    wav = wav / torch.max(torch.abs(wav))
+    return wav.squeeze(0)
+
+
+def spec2wav(feat, phase, fft_size, hop_size, win_size):
+    feat = torch.pow(feat, 2)
+    comp = torch.complex(feat * torch.cos(phase), feat * torch.sin(phase))
+    wav = torch.istft(comp, n_fft=fft_size, hop_length=hop_size, win_length=win_size,
+                      window=torch.hann_window(win_size), return_complex=True)
+    return wav
+
+
+def predict_pesq_batch(deg_feat, deg_phase, ref_feat, ref_phase, fft_size, hop_size, win_size):
+    """
+    feat or phase: B C L
+    """
+    deg_wav = spec2wav(deg_feat, deg_phase, fft_size, hop_size, win_size)
+    ref_wav = spec2wav(ref_feat, ref_phase, fft_size, hop_size, win_size)
+    mos = pesq.pesq_batch(48000, ref_wav, deg_wav, mode="wb")
+    return mos
 
 
 def accurate_num_cal(y_pred, y_true, step):

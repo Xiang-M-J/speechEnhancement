@@ -32,9 +32,9 @@ class BLSTM_frame_sig_att(nn.Module):
         self.act_fn = get_act_fn(act_fn)
         self.dropout = nn.Dropout(p=0.3)
         self.hasqiAtt_layer = nn.MultiheadAttention(linear_output, num_heads=8)
-
+        self.ln = nn.LayerNorm(linear_output)
         self.hasqiframe_score = nn.Linear(linear_output, 1, bias=True)
-        self.sigmoid = nn.Sigmoid()
+        # self.act = nn.LeakyReLU()
         self.hasqiaverage_score = nn.AdaptiveAvgPool1d(1)
 
     def forward(self, x):  # hl:(B,6)
@@ -45,8 +45,9 @@ class BLSTM_frame_sig_att(nn.Module):
         out = self.dropout(self.act_fn(self.linear1(out))).transpose(0, 1)  #(T_length, B,  128)
         hasqi, _ = self.hasqiAtt_layer(out, out, out)
         hasqi = hasqi.transpose(0, 1)  # (B, T_length, 128)
+        hasqi = self.ln(hasqi)
         hasqi = self.hasqiframe_score(hasqi)  # (B, T_length, 1)
-        hasqi = self.sigmoid(hasqi)  # pass a sigmoid
+        # hasqi = self.act(hasqi)  # pass a sigmoid
         hasqi_fram = hasqi.permute(0, 2, 1)  # (B, 1, T_length)
         hasqi_avg = self.hasqiaverage_score(hasqi_fram)  # (B,1,1)
 

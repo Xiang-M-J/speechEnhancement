@@ -2,18 +2,25 @@ import os
 import random
 import time
 
+import torch
+
+from models import QualityNet, Cnn, TCN, QualityNetAttn, QualityNetClassifier, CnnClass, Cnn2d, CnnAttn
+from lstm import lstm_net
+from DPCRN import dpcrn
+import numpy as np
 import yaml
 from matplotlib import pyplot as plt
 
-from utils import ListRead, DNSPOLQADataset
+from utils import ListRead, DNSPOLQADataset, DNSDataset
 
 plt.rcParams['font.sans-serif'] = ['Simhei']  # 显示中文
 plt.rcParams['axes.unicode_minus'] = False  # 显示负号
 plt.rcParams['font.size'] = "14.0"
 dpi = 300
+forget_gate_bias = -3
 
 
-def load_dataset(path, spilt_rate, fft_size=512, hop_size=256):
+def load_dataset_qn(path, spilt_rate, fft_size=512, hop_size=256):
     wav_list = ListRead(path)
     random.shuffle(wav_list)
 
@@ -32,9 +39,29 @@ def load_dataset(path, spilt_rate, fft_size=512, hop_size=256):
     return train_dataset, valid_dataset, test_dataset
 
 
+def load_dataset_se(path, spilt_rate, fft_size=512, hop_size=256):
+    wav_list = ListRead(path)
+    random.shuffle(wav_list)
+
+    train_length = int(len(wav_list) * spilt_rate[0])
+    valid_length = int(len(wav_list) * spilt_rate[1])
+
+    Train_list = wav_list[:train_length]
+
+    Valid_list = wav_list[train_length:train_length + valid_length]
+
+    Test_list = wav_list[train_length + valid_length:]
+
+    train_dataset = DNSDataset(Train_list, fft_num=fft_size, win_shift=hop_size, win_size=fft_size)
+    valid_dataset = DNSDataset(Valid_list, fft_num=fft_size, win_shift=hop_size, win_size=fft_size)
+    test_dataset = DNSDataset(Test_list, fft_num=fft_size, win_shift=hop_size, win_size=fft_size)
+    return train_dataset, valid_dataset, test_dataset
+
+
 class Args:
     def __init__(self,
                  model_type,
+                 model2_type=None,
                  model_name=None,
                  epochs=35,
                  lr=1e-3,
@@ -83,6 +110,7 @@ class Args:
             enableFrame: 是否允许 Frame loss Default: True
             smooth: 是否平滑标签 Default: True
             focal_gamma: focal loss 中的gamma
+            model2_type: 第二个模型的类型
         """
 
         # 基础参数
@@ -97,6 +125,7 @@ class Args:
         self.save_model_epoch = save_model_epoch
         self.scheduler_type = scheduler_type
         self.load_weight = load_weight
+        self.model2_type = model2_type
 
         # 损失函数相关
         self.enableFrame = enableFrame
@@ -177,6 +206,7 @@ class Metric:
             self.lcc = None
             self.srcc = None
             self.pesq = None
+            self.predictMos = None
             if with_acc:
                 self.test_acc = 0
         else:
@@ -271,6 +301,61 @@ def plot_metric(metric: dict, title: str = '', xlabel: str = 'epoch', ylabel: st
     plt.legend(legend)
     plt.savefig(os.path.join(result_path, f"{filename}.png"), dpi=dpi)
     return fig
+
+
+def plot_spectrogram(wav, fs, fft_size, hop_size, title: str = "语谱图", filename=None, result_path: str = "results/"):
+    if filename is None:
+        filename = title.replace(' ', '_')
+    plt.clf()
+    fig = plt.figure(dpi=dpi, figsize=(20, 10))
+    plt.specgram(wav, Fs=fs, window=np.hanning(fft_size), noverlap=hop_size, NFFT=fft_size)
+    plt.title(title)
+    plt.xlabel("Time")
+    plt.ylabel("Frequency")
+    plt.savefig(os.path.join(result_path, f"{filename}.png"), dpi=dpi)
+    return fig
+
+
+def load_qn_model(args: Args):
+    if args.model_type == "lstm":
+        model = QualityNet(args.dropout)
+    elif args.model_type == "lstmA":
+        model = QualityNetAttn(args.dropout)
+    elif args.model_type == "cnn":
+        model = Cnn(args.cnn_filter, args.cnn_feature, args.dropout)
+    elif args.model_type == "cnn2d":
+        model = Cnn2d()
+    elif args.model_type == "cnnA":
+        model = CnnAttn(args.cnn_filter, args.cnn_feature, args.dropout)
+    elif args.model_type == "tcn":
+        model = TCN()
+    elif args.model_type == "lstmClass":
+        model = QualityNetClassifier(args.dropout, args.score_step)
+    elif args.model_type == "cnnClass":
+        model = CnnClass(args.dropout, args.score_step)
+    else:
+        raise ValueError("Invalid model type")
+
+    if "lstm" in args.model_type:
+        W = dict(model.lstm.named_parameters())
+        bias_init = np.concatenate((np.zeros([100]), forget_gate_bias * np.ones([100]), np.zeros([200])))
+
+        for name, wight in model.lstm.named_parameters():
+            if "bias" in name:
+                W[name] = torch.tensor(bias_init, dtype=torch.float32)
+
+        model.lstm.load_state_dict(W)
+    return model
+
+
+def load_se_model(args: Args):
+    if args.model_type == "lstm_se":
+        model = lstm_net(args.fft_size)
+    elif args.model_type == "dpcrn_se":
+        model = dpcrn(args.fft_size)
+    else:
+        raise ValueError("Error se_model_type")
+    return model
 
 
 if __name__ == '__main__':
