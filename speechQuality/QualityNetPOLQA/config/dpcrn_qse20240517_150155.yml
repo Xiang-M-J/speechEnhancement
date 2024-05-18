@@ -1,4 +1,4 @@
-batch_size: 16
+batch_size: 4
 beta1: 0.99
 beta2: 0.999
 cnn_feature: 64
@@ -6,16 +6,16 @@ cnn_filter: 128
 delta_loss: 0.0002
 dropout: 0.3
 enableFrame: true
-epochs: 35
+epochs: 15
 fft_size: 512
 focal_gamma: 2
 gamma: 0.3
 hop_size: 256
 load_weight: false
-lr: 0.001
-model2_type: null
-model_name: dpcrn_se20240515_235913
-model_type: dpcrn_se
+lr: 0.0003
+model2_type: hasa
+model_name: dpcrn_qse20240517_150155
+model_type: dpcrn_qse
 optimizer_type: 3
 patience: 5
 random_seed: 34
@@ -30,5 +30,5 @@ spilt_rate:
 - 0.8
 - 0.1
 - 0.1
-step_size: 10
+step_size: 5
 weight_decay: 0

@@ -246,9 +246,11 @@ class QNLoss(nn.Module):
         self.model = model
 
     def forward(self, input):
-        with torch.no_grad():
-            score = self.model(input)
-        score = (score - 1.0) / 4.0  # 放缩在 0.2-1之间
+        # with torch.no_grad():
+        score = self.model(input)
+        if type(score) is tuple:
+            score = score[1].squeeze(0)
+        score = (score - 1.0) / 4.0  # 放缩在 0-1之间
         score[score > 1.0] = 1.
         score[score < 0.0] = 0.
         return torch.sum(torch.pow(1 - score, 2))

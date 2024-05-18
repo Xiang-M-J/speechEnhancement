@@ -10,8 +10,8 @@ from torch.utils.data import dataloader
 from torch.utils.tensorboard import SummaryWriter
 from tqdm import tqdm
 
-from trainer_utils import Args, EarlyStopping, Metric, plot_metric, plot_spectrogram
-from utils import getStftSpec, spec2wav
+from trainer_utils import Args, EarlyStopping, Metric, plot_metric, plot_spectrogram, plot_quantity
+from utils import getStftSpec, spec2wav, CalQuality
 from losses import QNLoss
 
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
@@ -42,8 +42,7 @@ class TrainerQSE:
         self.test_acc = []
         if args.save:
             self.check_dir()
-            self.writer = SummaryWriter(
-                "runs/" + self.args.model_type + time.strftime('%Y%m%d_%H%M%S', time.localtime()))
+            self.writer = SummaryWriter("runs/" + self.args.model_name)
 
     def check_dir(self):
         """
@@ -93,7 +92,7 @@ class TrainerQSE:
         return loss_fn
 
     @staticmethod
-    def train_step(model, x, y, loss_fn, optimizer):
+    def train_epoch(model, x, y, loss_fn, optimizer):
         x = x.to(device)
         y = y.to(device)
         y_pred = model(x)
@@ -162,7 +161,6 @@ class TrainerQSE:
         # loss_fn = self.get_loss_fn()
         model_se = model_se.to(device)
         model_qn = model_qn.to(device)
-        model_qn.eval()
         self.freeze_parameters(model=model_qn)
         loss_fn = QNLoss(model_qn)
 
@@ -191,15 +189,17 @@ class TrainerQSE:
                 train_loss = 0
                 valid_loss = 0
                 model_se.train()
+                model_qn.train()
                 loop_train = tqdm(enumerate(train_loader), leave=False)
                 for batch_idx, (x, _, y, _) in loop_train:
-                    loss = self.train_step(model_se, x, y, loss_fn, optimizer)
+                    loss = self.train_epoch(model_se, x, y, loss_fn, optimizer)
                     train_loss += loss
 
                     loop_train.set_description_str(f'Training [{epoch + 1}/{self.epochs}]')
                     loop_train.set_postfix_str("step: {}/{} loss: {:.4f}".format(batch_idx, train_step, loss))
 
                 model_se.eval()
+                model_qn.eval()
                 with torch.no_grad():
                     loop_valid = tqdm(enumerate(valid_loader), leave=False)
                     for batch_idx, (x, _, y, _) in loop_valid:
@@ -295,7 +295,7 @@ class TrainerQSE:
                 self.writer.add_text("duration", "{:2f}".format((end_time - start_time) / 60.))
             return model_se
 
-    def test_step(self, model: nn.Module, model_qn: nn.Module, test_loader, test_num):
+    def test_step(self, model: nn.Module, model_qn: nn.Module, test_loader, test_num, q_len):
         """
         Args:
             model: 模型
@@ -310,36 +310,45 @@ class TrainerQSE:
         self.freeze_parameters(model_qn)
         metric = Metric(mode="test")
         test_step = len(test_loader)
+        calQuantity = CalQuality(fs=48000, batch=True)
 
         loss_fn = QNLoss(model_qn)
         test_loss = 0
-        predict_mos = []
+        predict_pesq = []
+        predict_stoi = []
+        idx = 0
         with torch.no_grad():
             for batch_idx, (x, xp, y, yp) in tqdm(enumerate(test_loader)):
                 loss, est_x = self.predict(model, x, y, loss_fn)
                 test_loss += loss
+                batch = x.shape[0]
+                if idx < q_len:
+                    est_wav = spec2wav(est_x, None, fft_size=self.args.fft_size, hop_size=self.args.hop_size,
+                                       win_size=self.args.fft_size, input_type=self.args.se_input_type)
+                    p, s = calQuantity(est_wav.cpu().detach(), yp.cpu().detach())
+                    predict_pesq[idx: idx + batch] = p
+                    predict_stoi[idx: idx + batch] = s
+                idx += batch
 
         metric.test_loss = test_loss / test_step
         print("Test loss: {:.4f}".format(metric.test_loss))
 
+        metric.pesq = predict_pesq
+        metric.stoi = predict_stoi
+
         with open("log.txt", mode='a', encoding="utf-8") as f:
             f.write("test loss: {:.4f} \n".format(metric.test_loss))
 
+        fig1 = plot_quantity(predict_pesq, "测试语音的pesq", ylabel="pesq", result_path=self.image_path)
+        fig2 = plot_quantity(predict_stoi, "测试语音的stoi", ylabel="stoi", result_path=self.image_path)
         if self.args.save:
-            # plt.clf()
-            # fig = plt.figure(1)
-            #
-            # plt.xlabel('True PESQ')
-            # plt.ylabel('Predicted PESQ')
-            # plt.title('LCC= %f, SRCC= %f, MSE= %f' % (float(metric.lcc[0][1]), metric.srcc[0], metric.mse))
-            # plt.savefig(self.image_path + 'Scatter_plot.png', dpi=300)
-            # self.writer.add_text("test metric", str(metric))
-            # self.writer.add_figure("predict score", fig)
+            self.writer.add_text("test metric", str(metric))
+            self.writer.add_figure("pesq", fig1)
+            self.writer.add_figure("stoi", fig2)
             np.save(self.data_path + "test_metric.npy", metric.items())
-        else:
-            pass
 
-    def test(self, test_dataset, model: nn.Module = None, model_path: str = None):
+    def test(self, test_dataset, model: nn.Module = None, model_qn: nn.Module = None, model_path: str = None,
+             q_len=500):
 
         test_loader = dataloader.DataLoader(
             dataset=test_dataset,
@@ -349,51 +358,20 @@ class TrainerQSE:
         test_num = len(test_dataset)
         start_time = time.time()
         if model is not None:
-            self.test_step(model, test_loader, test_num)
+            self.test_step(model, model_qn, test_loader, test_num, q_len)
         elif model_path is None:
             model_path = self.final_model_path
             assert os.path.exists(model_path)
             print(f"load model: {model_path}")
             model = torch.load(model_path)
-            self.test_step(model, test_loader, test_num)
+            self.test_step(model, model_qn, test_loader, test_num, q_len)
         elif model_path is not None:
             assert os.path.exists(model_path)
             print(f"load model: {model_path}")
             model = torch.load(model_path)
-            self.test_step(model, test_loader, test_num)
+            self.test_step(model, model_qn, test_loader, test_num, q_len)
         else:
             raise "model_path and model can not be none simultaneously"
 
         end_time = time.time()
         print('Test ran for %.2f minutes' % ((end_time - start_time) / 60.))
-
-    def inference_step(self, model, noise_wav_path, target_wav_path=None):
-        if not os.path.exists(self.inference_result_path):
-            os.makedirs(self.inference_result_path)
-        wav_name = noise_wav_path.split('\\')[-1].split('.')[0]
-        noise_wav, fs = soundfile.read(noise_wav_path)
-        fig1 = plot_spectrogram(noise_wav, fs, self.args.fft_size, self.args.hop_size,
-                                filename=wav_name + "_带噪语音语谱图",
-                                result_path=self.inference_result_path)
-        if target_wav_path is not None:
-            target_wav, fs = soundfile.read(target_wav_path)
-            fig2 = plot_spectrogram(target_wav, fs, self.args.fft_size, self.args.hop_size,
-                                    filename=wav_name + "_干净语音语谱图",
-                                    result_path=self.inference_result_path)
-
-        feat_x, phase_x = getStftSpec(noise_wav_path, self.args.fft_size, self.args.hop_size, self.args.fft_size)
-
-        with torch.no_grad():
-            est_x = model(feat_x.unsqueeze(0).to(device)).squeeze(0).cpu().detach()
-        est_wav = spec2wav(est_x, phase_x, self.args.fft_size, self.args.hop_size, self.args.fft_size)
-        fig3 = plot_spectrogram(est_wav.numpy(), 48000, self.args.fft_size, self.args.hop_size,
-                                filename=wav_name + "_增强语音语谱图",
-                                result_path=self.inference_result_path)
-
-        denoise_wav_path = wav_name + "_denoise.wav"
-        soundfile.write(os.path.join(self.inference_result_path, denoise_wav_path), est_wav, samplerate=48000)
-        if self.args.save:
-            self.writer.add_audio(wav_name, torch.from_numpy(noise_wav), sample_rate=48000)
-            if target_wav_path is not None:
-                self.writer.add_audio(wav_name + "_无噪声", torch.from_numpy(target_wav), sample_rate=48000)
-            self.writer.add_audio(wav_name + "_增强后", est_wav, sample_rate=48000)

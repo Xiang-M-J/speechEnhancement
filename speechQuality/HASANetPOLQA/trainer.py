@@ -39,8 +39,7 @@ class Trainer:
         self.test_acc = []
         if args.save:
             self.check_dir()
-            self.writer = SummaryWriter(
-                "runs/" + self.args.model_type + time.strftime('%Y%m%d_%H%M%S', time.localtime()))
+            self.writer = SummaryWriter("runs/" + self.args.model_name)
 
     def check_dir(self):
         """

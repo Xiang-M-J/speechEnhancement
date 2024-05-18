@@ -42,8 +42,7 @@ class TrainerC:
         self.test_acc = []
         if args.save:
             self.check_dir()
-            self.writer = SummaryWriter(
-                "runs/" + self.args.model_type + time.strftime('%Y%m%d_%H%M%S', time.localtime()))
+            self.writer = SummaryWriter("runs/" + self.args.model_name)
 
     def check_dir(self):
         """
@@ -100,7 +99,7 @@ class TrainerC:
         loss4.to(device=device)
         return [loss1, loss2, loss3, loss4]
 
-    def train_step(self, model, x, y, loss_fns, optimizer):
+    def train_epoch(self, model, x, y, loss_fns, optimizer):
         loss1 = loss_fns[0]
         loss2 = loss_fns[1]
         loss3 = loss_fns[2]
@@ -207,7 +206,7 @@ class TrainerC:
                 model.train()
                 loop_train = tqdm(enumerate(train_loader), leave=False)
                 for batch_idx, (x, y) in loop_train:
-                    loss, num = self.train_step(model, x, y, loss_fns, optimizer)
+                    loss, num = self.train_epoch(model, x, y, loss_fns, optimizer)
                     train_loss += loss
                     train_acc_num += num
                     loop_train.set_description_str(f'Training [{epoch + 1}/{self.epochs}]')

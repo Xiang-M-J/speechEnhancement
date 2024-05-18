@@ -39,7 +39,7 @@ def load_dataset_qn(path, spilt_rate, fft_size=512, hop_size=256):
     return train_dataset, valid_dataset, test_dataset
 
 
-def load_dataset_se(path, spilt_rate, fft_size=512, hop_size=256):
+def load_dataset_se(path, spilt_rate, fft_size=512, hop_size=256, input_type=2):
     wav_list = ListRead(path)
     random.shuffle(wav_list)
 
@@ -52,9 +52,9 @@ def load_dataset_se(path, spilt_rate, fft_size=512, hop_size=256):
 
     Test_list = wav_list[train_length + valid_length:]
 
-    train_dataset = DNSDataset(Train_list, fft_num=fft_size, win_shift=hop_size, win_size=fft_size)
-    valid_dataset = DNSDataset(Valid_list, fft_num=fft_size, win_shift=hop_size, win_size=fft_size)
-    test_dataset = DNSDataset(Test_list, fft_num=fft_size, win_shift=hop_size, win_size=fft_size)
+    train_dataset = DNSDataset(Train_list, fft_num=fft_size, win_shift=hop_size, win_size=fft_size, input_type=input_type)
+    valid_dataset = DNSDataset(Valid_list, fft_num=fft_size, win_shift=hop_size, win_size=fft_size, input_type=input_type)
+    test_dataset = DNSDataset(Test_list, fft_num=fft_size, win_shift=hop_size, win_size=fft_size, input_type=input_type)
     return train_dataset, valid_dataset, test_dataset
 
 
@@ -85,11 +85,12 @@ class Args:
                  dropout=0.3,
                  score_step=0.2,
                  load_weight=False,
-                 enableFrame=True,
+                 enable_frame=True,
                  smooth=True,
                  cnn_filter=128,
                  cnn_feature=64,
                  focal_gamma=2,
+                 input_type=2,
                  ):
         """
         Args:
@@ -107,16 +108,22 @@ class Args:
             step_size: LR scheduler参数  Default: 5
             shuffle: 是否打乱数据 Default: True
             score_step: 分数分布步长
-            enableFrame: 是否允许 Frame loss Default: True
+            enable_frame: 是否允许 Frame loss Default: True
             smooth: 是否平滑标签 Default: True
             focal_gamma: focal loss 中的gamma
             model2_type: 第二个模型的类型
+            input_type: 语音增强模型的输入类型（1：只输入幅度谱，2：输入幅度谱和相位谱的堆叠）
         """
 
         # 基础参数
+
         if model_name is None:
-            model_name = model_type
-        self.model_name = model_name + time.strftime('%Y%m%d_%H%M%S', time.localtime())
+            self.now_time = time.strftime('%Y%m%d_%H%M%S', time.localtime())
+            model_name = model_type + ("" if model2_type is None else model2_type)
+            self.model_name = model_name + self.now_time
+        else:
+            self.now_time = model_name[-15:]
+            self.model_name = model_name
         self.epochs = epochs
         self.dropout = dropout
         self.random_seed = random_seed
@@ -127,8 +134,11 @@ class Args:
         self.load_weight = load_weight
         self.model2_type = model2_type
 
+        # 语音增强模型相关
+        self.se_input_type = input_type
+
         # 损失函数相关
-        self.enableFrame = enableFrame
+        self.enableFrame = enable_frame
         self.smooth = smooth
         self.score_step = score_step
         self.focal_gamma = focal_gamma
@@ -206,7 +216,8 @@ class Metric:
             self.lcc = None
             self.srcc = None
             self.pesq = None
-            self.predictMos = None
+            self.polqa = None
+            self.stoi = None
             if with_acc:
                 self.test_acc = 0
         else:
@@ -299,6 +310,25 @@ def plot_metric(metric: dict, title: str = '', xlabel: str = 'epoch', ylabel: st
     plt.xlabel(xlabel)
     plt.ylabel(ylabel)
     plt.legend(legend)
+    plt.savefig(os.path.join(result_path, f"{filename}.png"), dpi=dpi)
+    return fig
+
+
+def plot_quantity(quantity: list, title: str = '', xlabel=None, ylabel: str = '', filename: str = None,
+                  result_path: str = "results/"):
+    if filename is None:
+        filename = title.replace(' ', '_')
+    plt.clf()
+    fig = plt.figure(dpi=dpi)
+    mean_ = np.mean(quantity)
+    plt.scatter(range(len(quantity)), quantity, s=3)
+    x = [0, len(quantity)]
+    y = [mean_, mean_]
+    plt.plot(x, y, linewidth=2, color='r')
+    if xlabel is not None:
+        plt.xlabel(xlabel)
+    plt.ylabel(ylabel)
+    plt.title(title)
     plt.savefig(os.path.join(result_path, f"{filename}.png"), dpi=dpi)
     return fig
 

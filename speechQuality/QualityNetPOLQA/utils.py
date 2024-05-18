@@ -1,8 +1,10 @@
 import numpy as np
+import pystoi
 import torch
 import torchaudio
 from torch.utils.data import Dataset
 import pesq
+from torchaudio.transforms import Resample
 
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
@@ -52,7 +54,7 @@ class DNSPOLQADataset(Dataset):
 
 
 class DNSDataset(Dataset):
-    def __init__(self, files, fft_num, win_shift, win_size) -> None:
+    def __init__(self, files, fft_num, win_shift, win_size, input_type=2) -> None:
         super().__init__()
         self.noise_path = []
         self.clean_path = []
@@ -63,31 +65,82 @@ class DNSDataset(Dataset):
         self.fft_num = fft_num
         self.win_shift = win_shift
         self.win_size = win_size
+        self.input_type = input_type
 
     def __getitem__(self, index):
         noisy_wav = self.noise_path[index]
         clean_wav = self.clean_path[index]
 
-        pn_feat, pn_phase = getStftSpec(noisy_wav, self.fft_num, self.win_shift, self.win_size)
-        pc_feat, pc_phase = getStftSpec(clean_wav, self.fft_num, self.win_shift, self.win_size)
+        noise, _ = preprocess(noisy_wav)
+        clean, _ = preprocess(clean_wav)
 
-        return pn_feat, pn_phase, pc_feat, pc_phase
+        pn_feat, pn_phase = getStftSpec(noise, self.fft_num, self.win_shift, self.win_size, self.input_type)
+        pc_feat, pc_phase = getStftSpec(clean, self.fft_num, self.win_shift, self.win_size, self.input_type)
+
+        return pn_feat, pn_phase, pc_feat, clean
 
     def __len__(self):
         return len(self.noise_path)
 
 
-def getStftSpec(wav_path, fft_num, win_shift, win_size):
+class CalQuality:
+    def __init__(self, fs=48000, batch=True):
+        super().__init__()
+        self.resample = Resample(fs, 16000)
+        self.batch = batch
+        self.fs = fs
+
+    def cal_pesq(self, deg, ref):
+        if deg.shape != ref.shape:
+            raise ValueError("deg audio and ref audio must be same shape")
+        deg_16k = self.resample(deg)
+        ref_16k = self.resample(ref)
+
+        if self.batch:
+            p = pesq.pesq_batch(16000, ref_16k.numpy(), deg_16k.numpy(), mode="wb", n_processor=4)
+            return p
+        else:
+            p = pesq.pesq(16000, ref_16k.numpy(), deg_16k.numpy())
+            return p
+
+    def cal_stoi(self, deg, ref):
+        if deg.shape != ref.shape:
+            raise ValueError("deg audio and ref audio must be same shape")
+        if self.batch:
+            s = []
+            for i in range(deg.shape[0]):
+                s_ = pystoi.stoi(ref[i, :], deg[i, :], self.fs)
+                s.append(s_)
+            return s
+        else:
+            s = pystoi.stoi(ref, deg, self.fs)
+            return s
+
+    def cal_polqa(self, deg, ref):
+        raise NotImplementedError
+
+    def __call__(self, deg: torch.Tensor, ref: torch.Tensor):
+        """
+        deg: (N, L) or (L,)
+        ref: (N, L) or (L,)
+        return: pesq, stoi
+        """
+        p = self.cal_pesq(deg, ref)
+        s = self.cal_stoi(deg.numpy(), ref.numpy())
+        return p, s
+
+
+def getStftSpec(feat_wav, fft_num, win_shift, win_size, input_type=2):
     """
     处理数据
     """
-    feat_wav = preprocess(wav_path)
     feat_x = torch.stft(feat_wav, n_fft=fft_num, hop_length=win_shift, win_length=win_size,
                         window=torch.hann_window(win_size), return_complex=True).T
     feat_x, phase_x = torch.abs(feat_x), torch.angle(feat_x)
     feat_x = torch.sqrt(feat_x)  # 压缩幅度
-    # 用于 dpcrn
-    feat_x = torch.stack((feat_x * torch.cos(phase_x), feat_x * torch.sin(phase_x)), dim=0)
+    if input_type == 2:
+        # 用于 dpcrn
+        feat_x = torch.stack((feat_x * torch.cos(phase_x), feat_x * torch.sin(phase_x)), dim=0)
     return feat_x, phase_x
 
 
@@ -95,16 +148,32 @@ def preprocess(wav_path):
     """
     预处理音频，约束波形幅度
     """
-    wav = torchaudio.load(wav_path)[0]
+    wav, fs = torchaudio.load(wav_path)
     wav = wav / torch.max(torch.abs(wav))
-    return wav.squeeze(0)
+    return wav.squeeze(0), fs
 
 
-def spec2wav(feat, phase, fft_size, hop_size, win_size):
-    feat = torch.pow(feat, 2)
-    comp = torch.complex(feat * torch.cos(phase), feat * torch.sin(phase))
+def spec2wav(feat, phase, fft_size, hop_size, win_size, input_type=2):
+    """
+    feat:
+    input type == 1:   [N L C]
+    input type == 2:   [N 2 L C], phase = None
+    """
+    if input_type == 1:
+        feat = torch.pow(feat, 2)
+        comp = torch.complex(feat * torch.cos(phase), feat * torch.sin(phase))
+    elif input_type == 2:
+        if len(feat.shape) != 4:
+            raise ValueError("feat's dimension is not 4")
+        feat_mag = torch.norm(feat, dim=1)
+        feat_phase = torch.atan2(feat[:, 1, :, :], feat[:, 0, :, :])
+        feat_mag = torch.pow(feat_mag, 2)
+
+        comp = torch.complex(feat_mag * torch.cos(feat_phase), feat_mag * torch.sin(feat_phase)).permute([0, 2, 1])
+    else:
+        raise ValueError("type error")
     wav = torch.istft(comp, n_fft=fft_size, hop_length=hop_size, win_length=win_size,
-                      window=torch.hann_window(win_size), return_complex=True)
+                      window=torch.hann_window(win_size), return_complex=False)
     return wav
 
 
