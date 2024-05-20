@@ -87,7 +87,7 @@ class TrainerC:
         loss1 = EDMLoss(self.args.score_step, self.args.smooth)
         # loss1 = AvgCrossEntropyLoss(step=self.args.score_step)
         # loss1 = FocalEDMLoss(self.args.score_step, self.args.smooth, self.args.focal_gamma)
-        loss2 = FrameEDMLoss(smooth=self.args.smooth, enable=self.args.enableFrame, step=self.args.score_step)
+        loss2 = FrameEDMLoss(smooth=self.args.smooth, enable=self.args.enable_frame, step=self.args.score_step)
         # loss2 = nn.MSELoss(reduction='mean')
         # loss2 = FrameCrossEntropyLoss(enable=self.args.enableFrame, step=self.args.score_step)
         # loss2 = FocalFrameEDMLoss(self.args.score_step, self.args.smooth, self.args.enableFrame, self.args.focal_gamma)
@@ -389,7 +389,7 @@ class TrainerC:
             plt.pause(2)
             plt.ioff()
 
-    def test(self, test_dataset, model: nn.Module = None, model_path: str = None):
+    def test(self, test_dataset, model: nn.Module = None, model_path: str = None, q_len=500):
 
         test_loader = dataloader.DataLoader(
             dataset=test_dataset,

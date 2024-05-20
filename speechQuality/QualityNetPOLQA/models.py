@@ -39,20 +39,6 @@ class TimeRestrictedAttention(nn.Module):
         return context, attn
 
 
-class MyMultiheadAttention(nn.Module):
-    def __init__(self, d_model=200, heads=4, offset=64):
-        super(MyMultiheadAttention, self).__init__()
-        # self.input = nn.Linear(d_model, 256)
-        self.attn = nn.MultiheadAttention(d_model, num_heads=1, batch_first=True)
-        # self.output = nn.Linear(256, d_model)
-
-    def forward(self, x, mask):
-        # x = self.input(x)
-        x, attn = self.attn(x, x, x)
-        # x = self.output(x)
-        return x, attn
-
-
 def get_attn_mask(seq_len, offset):
     mask = torch.ones([seq_len, seq_len], dtype=torch.bool)
     mask = torch.tril(mask, offset) * torch.triu(mask, -offset)
@@ -343,7 +329,7 @@ class QualityNetClassifier(nn.Module):
         super(QualityNetClassifier, self).__init__()
         self.lstm = nn.LSTM(257, 100, num_layers=2, bidirectional=True, dropout=dropout, batch_first=True)
         self.linear1 = nn.Sequential(
-            nn.Linear(200, 100), # 2 * 100
+            nn.Linear(200, 100),  # 2 * 100
             nn.ELU(),
             nn.Dropout(dropout)
         )
@@ -365,6 +351,51 @@ class QualityNetClassifier(nn.Module):
         Frame_score = self.linear2(l1)
         Average_score = self.pool(Frame_score)
         return torch.softmax(Frame_score, dim=-1), torch.softmax(Average_score, dim=-1)
+
+
+class HASANet(nn.Module):
+    """
+    input_size: 257
+    hidden_size: 100
+    num_layers: 1
+    dropout: 0
+    linear_output: 128
+    act_fn: 'relu'
+    """
+    def __init__(self):
+        super(HASANet, self).__init__()
+        hidden_size = 100
+        num_layers = 1
+        dropout = 0.
+        linear_output = 128
+        self.blstm = nn.LSTM(input_size=257,
+                             hidden_size=hidden_size,
+                             num_layers=num_layers,
+                             dropout=dropout,
+                             bidirectional=True,
+                             batch_first=True)
+        self.linear1 = nn.Linear(hidden_size * 2, linear_output, bias=True)
+        self.act_fn = nn.ReLU()
+        self.dropout = nn.Dropout(p=0.3)
+        self.hasqiAtt_layer = nn.MultiheadAttention(linear_output, num_heads=8)
+        self.ln = nn.LayerNorm(linear_output)
+        self.hasqiframe_score = nn.Linear(linear_output, 1, bias=True)
+        # self.act = nn.LeakyReLU()
+        self.hasqiaverage_score = nn.AdaptiveAvgPool1d(1)
+
+    def forward(self, x):  # hl:(B,6)
+
+        out, _ = self.blstm(x)  # (B,T, 2*hidden)
+        out = self.dropout(self.act_fn(self.linear1(out))).transpose(0, 1)  #(T_length, B,  128)
+        hasqi, _ = self.hasqiAtt_layer(out, out, out)
+        hasqi = hasqi.transpose(0, 1)  # (B, T_length, 128)
+        hasqi = self.ln(hasqi)
+        hasqi = self.hasqiframe_score(hasqi)  # (B, T_length, 1)
+        # hasqi = self.act(hasqi)  # pass a sigmoid
+        hasqi_fram = hasqi.permute(0, 2, 1)  # (B, 1, T_length)
+        hasqi_avg = self.hasqiaverage_score(hasqi_fram)  # (B,1,1)
+
+        return hasqi_fram, hasqi_avg.squeeze(1)  # (B, 1, T_length) (B,1)
 
 
 if __name__ == '__main__':

@@ -6,6 +6,8 @@ from torch.utils.data import Dataset
 import pesq
 from torchaudio.transforms import Resample
 
+from sigmos.sigmos import SigMOS
+
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
 
@@ -31,10 +33,11 @@ def Sp_and_phase(path, fft_size=512, hop_size=256, Noisy=False, compress=False):
 
 
 class DNSPOLQADataset(Dataset):
-    def __init__(self, wav_files: list[str], fft_size: int = 512, hop_size: int = 256, ):
+    def __init__(self, wav_files: list[str], fft_size: int = 512, hop_size: int = 256, return_wav=False):
         super(DNSPOLQADataset, self).__init__()
         self.fft_size = fft_size
         self.hop_size = hop_size
+        self.return_wav = return_wav
         self.wav = []
         self.polqa = []
         for wav_file in wav_files:
@@ -45,8 +48,12 @@ class DNSPOLQADataset(Dataset):
     def __getitem__(self, index):
         wav = self.wav[index]
         polqa = torch.tensor(float(self.polqa[index]), dtype=torch.float32, device=device)
-        noisy_LP, _ = Sp_and_phase(wav)
-        noisy_LP = noisy_LP.to(device=device)
+        if self.return_wav:
+            noisy_LP, fs = torchaudio.load(wav)
+            noisy_LP = noisy_LP / torch.max(torch.abs(noisy_LP))
+        else:
+            noisy_LP, _ = Sp_and_phase(wav)
+        noisy_LP = noisy_LP.to(device)
         return noisy_LP, [polqa, polqa * torch.ones([noisy_LP.shape[0]], dtype=torch.float32, device=device)]
 
     def __len__(self):
@@ -128,6 +135,29 @@ class CalQuality:
         p = self.cal_pesq(deg, ref)
         s = self.cal_stoi(deg.numpy(), ref.numpy())
         return p, s
+
+
+class CalSigmos:
+    def __init__(self, fs=48000, batch=True, model_dir="sigmos"):
+        super().__init__()
+        self.estimator = SigMOS(model_dir=model_dir)
+        self.batch = batch
+        self.fs = fs
+
+    def __call__(self, wav):
+        if self.batch:
+            results = [[] for _ in range(7)]
+            batch = wav.shape[0]
+            for i in range(batch):
+                wav_ = wav[i, :]
+                result = self.estimator.run(wav_, self.fs)
+                for j in range(7):
+                    results[j].append(result[j])
+            return results
+        else:
+            if len(wav.shape) == 2:
+                wav = wav.squeeze(0)
+            return self.estimator.run(wav, sr=self.fs)
 
 
 def getStftSpec(feat_wav, fft_num, win_shift, win_size, input_type=2):
@@ -278,6 +308,10 @@ def ListRead(path):
     with open(path, 'r') as f:
         file_list = f.read().splitlines()
     return file_list
+
+
+def norm_label(y):
+    return (y - 1.0) / 4.0
 
 
 if __name__ == '__main__':

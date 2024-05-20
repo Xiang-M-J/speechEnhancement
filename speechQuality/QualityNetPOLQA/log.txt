@@ -467,25 +467,129 @@ test loss: 0.0380
 dpcrn_se20240516_095845	2024-05-16 09:59:08	0.38
 dpcrn_se20240516_100618	2024-05-16 15:18:40	312.35
 train loss: 0.0360, valid loss: 0.0374 
-test loss: 0.0361 
-dpcrn_qse20240517_092407	2024-05-17 09:24:35	0.46
-dpcrn_qse20240517_092842	2024-05-17 09:28:59	0.27
-dpcrn_qse20240517_092928	2024-05-17 09:29:44	0.26
-dpcrn_qse20240517_093028	2024-05-17 14:46:44	316.26
-train loss: 0.0713, valid loss: 0.0699
-dpcrn_qse20240517_145315	2024-05-17 14:57:45	4.50
-dpcrn_qse20240517_145843	2024-05-17 15:00:30	1.78
-dpcrn_qse20240517_150155	2024-05-18 02:04:35	662.65
-train loss: 0.7987, valid loss: 0.8290 
-test loss: 0.0386 
-dpcrn_qsehasa20240518_111355	2024-05-18 11:15:18	1.37
-dpcrn_qsehasa20240518_111850	2024-05-18 11:20:24	1.56
-dpcrn_qsehasa20240518_112435	2024-05-18 11:24:57	0.35
-test loss: 0.2755 
-dpcrn_qsehasa20240518_132109	2024-05-18 13:25:48	3.65
-dpcrn_qsehasa20240518_132634	2024-05-18 13:29:52	3.29
-dpcrn_qsehasa20240518_133043	2024-05-18 13:32:30	1.77
-dpcrn_qsehasa20240518_113036	2024-05-18 13:32:56	122.32
-train loss: 0.9008, valid loss: 0.9287
-dpcrn_qsehasa20240518_134326	2024-05-18 13:43:30	0.06
-dpcrn_qsehasa20240518_134357	2024-05-18 13:45:35	1.64
+test loss: 0.0361
+cnn20240518_231135	2024-05-18 23:20:19	8.74
+train loss: 0.0124, valid loss: 0.0174 
+cnn20240518_232322	2024-05-18 23:32:07	8.75
+train loss: 0.0124, valid loss: 0.0174 
+test loss: 0.0166, mse: 0.0165,  lcc: 0.9023, srcc: 0.8684 
+cnn20240518_234051	2024-05-19 00:00:03	19.19
+train loss: 0.2631, valid loss: 0.2511 
+test loss: 0.2697, mse: 0.2689,  lcc: 0.9015, srcc: 0.8636 
+cnn20240519_000039	2024-05-19 00:09:31	8.88
+train loss: 0.0124, valid loss: 0.0174 
+test loss: 0.0166, mse: 0.0165,  lcc: 0.9023, srcc: 0.8684 
+cnn20240519_085552	2024-05-19 09:04:46	8.91
+train loss: 0.0124, valid loss: 0.0174 
+test loss: 0.0166, mse: 0.0165,  lcc: 0.9023, srcc: 0.8684 
+cnn20240519_090524	2024-05-19 09:14:07	8.71
+train loss: 0.0124, valid loss: 0.0174 
+test loss: 0.0166, mse: 0.0165,  lcc: 0.9023, srcc: 0.8684 
+hasa20240519_092800	2024-05-19 09:37:24	9.41
+train loss: 0.0558, valid loss: 0.0559 
+test loss: 0.0465, mse: 0.0143,  lcc: 0.9173, srcc: 0.8620 
+hasa20240519_093919	2024-05-19 09:49:14	9.93
+train loss: 0.0329, valid loss: 0.0475 
+test loss: 0.0373, mse: 0.0136,  lcc: 0.9215, srcc: 0.8687 
+cnn20240519_095557	2024-05-19 09:57:00	1.06
+lstm20240519_095820	2024-05-19 09:59:29	1.14
+lstm20240519_100615	2024-05-19 10:18:17	11.55
+train loss: 0.0591, valid loss: 0.0569
+test loss: 0.0498, mse: 0.0266,  lcc: 0.8455, srcc: 0.8445 
+lstm20240519_101838	2024-05-19 10:23:44	5.10
+train loss: 0.0508, valid loss: 0.0541 
+test loss: 0.0474, mse: 0.0265,  lcc: 0.8504, srcc: 0.8441 
+lstm20240519_102727	2024-05-19 10:32:32	5.08
+train loss: 0.7210, valid loss: 0.7923 
+test loss: 0.6990, mse: 0.5631,  lcc: 0.7992, srcc: 0.7911 
+dpcrn_se20240518_224558	2024-05-19 10:44:38	718.65
+train loss: 0.0366, valid loss: 0.0379 
+lstm20240519_104312	2024-05-19 10:47:24	4.20
+train loss: 0.4511, valid loss: 0.4428 
+test loss: 0.4658, mse: 0.3968,  lcc: 0.8618, srcc: 0.8130 
+lstm20240519_104955	2024-05-19 10:54:10	4.25
+train loss: 0.3874, valid loss: 0.4012 
+test loss: 0.3872, mse: 0.3563,  lcc: 0.8887, srcc: 0.8383 
+test loss: 0.0366 
+lstm20240519_112046	2024-05-19 11:24:01	3.24
+train loss: 0.0387, valid loss: 0.0407 
+test loss: 0.0394, mse: 0.0233,  lcc: 0.8771, srcc: 0.8528 
+lstm20240519_113935	2024-05-19 11:44:31	4.94
+train loss: 0.0387, valid loss: 0.0407 
+test loss: 0.0394, mse: 0.0233,  lcc: 0.8771, srcc: 0.8528 
+lstm20240519_171014	2024-05-19 17:10:17	0.05
+dpcrn_qsecnn20240519_113145	2024-05-19 20:38:16	546.50
+train loss: 0.0067, valid loss: 0.0016
+test loss: 0.0009 
+test loss: 0.0367 
+test loss: 0.0367 
+test loss: 0.0367 
+test loss: 0.0367 
+test loss: 0.0326 
+test loss: 0.0326 
+test loss: 0.0342 
+hubert20240519_225035	2024-05-19 22:51:52	1.26
+hubert20240519_230518	2024-05-19 23:05:31	0.20
+hubert20240519_230648	2024-05-19 23:06:53	0.06
+hubert20240520_001344	2024-05-20 11:10:47	657.04
+train loss: 0.1027, valid loss: 0.1062 
+test loss: 0.1024, mse: 0.1024,  lcc: -0.0101, srcc: -0.0095 
+hubert20240520_111445	2024-05-20 11:18:13	3.45
+hubert20240520_112139	2024-05-20 11:27:00	5.35
+train loss: 0.1083, valid loss: 0.1051 
+test loss: 0.0926, mse: 0.0926,  lcc: nan, srcc: nan 
+hubert20240520_112835	2024-05-20 11:34:11	5.60
+hubert20240520_113430	2024-05-20 11:48:36	14.09
+train loss: 1.7293, valid loss: 1.7046 
+test loss: 1.5557, mse: 1.5557,  lcc: nan, srcc: nan 
+hubert20240520_115106	2024-05-20 12:01:39	10.54
+train loss: 1.7490, valid loss: 1.7016 
+test loss: 1.4875, mse: 1.4599,  lcc: 0.1942, srcc: 0.1884 
+hubert20240520_123114	2024-05-20 12:40:36	9.37
+hubert20240520_125115	2024-05-20 12:52:39	1.39
+train loss: 1.7450, valid loss: 1.7395
+test loss: 1.7568, mse: 1.7421,  lcc: 0.0563, srcc: 0.0774 
+hubert20240520_125253	2024-05-20 12:54:02	1.15
+train loss: 1.7554, valid loss: 1.6683
+test loss: 1.4816, mse: 1.4535,  lcc: -0.0425, srcc: -0.0758 
+hubert20240520_125429	2024-05-20 12:56:21	1.86
+train loss: 1.7484, valid loss: 1.6744
+test loss: 1.4933, mse: 1.4662,  lcc: 0.0106, srcc: 0.0951 
+hubert20240520_125701	2024-05-20 13:00:37	3.59
+train loss: 1.7560, valid loss: 1.6771
+test loss: 1.6391, mse: 1.6202,  lcc: nan, srcc: nan 
+hubert20240520_130058	2024-05-20 13:07:40	6.70
+train loss: 0.2167, valid loss: 0.9368 
+test loss: 0.7947, mse: 0.8052,  lcc: 0.7199, srcc: 0.6258 
+hubert20240520_130757	2024-05-20 13:14:30	6.55
+train loss: 0.4208, valid loss: 0.5567
+test loss: 0.7282, mse: 0.7371,  lcc: 0.7471, srcc: 0.6643 
+hubert20240520_131449	2024-05-20 13:21:15	6.43
+train loss: 0.4715, valid loss: 0.5606
+test loss: 0.9004, mse: 0.9105,  lcc: 0.6639, srcc: 0.5966 
+hubert20240520_132146	2024-05-20 13:23:02	1.25
+train loss: 1.7487, valid loss: 1.7075
+test loss: 1.5490, mse: 1.5258,  lcc: 0.3269, srcc: 0.4679 
+hubert20240520_132332	2024-05-20 13:24:42	1.16
+train loss: 1.3784, valid loss: 0.9666
+test loss: 0.9345, mse: 0.9447,  lcc: 0.6237, srcc: 0.6083 
+hubert20240520_132508	2024-05-20 13:25:30	0.36
+hubert20240520_132646	2024-05-20 13:28:30	1.74
+train loss: 1.7733, valid loss: 1.7042
+test loss: 1.7286, mse: 1.7130,  lcc: -0.2797, srcc: -0.4233 
+hubert20240520_132902	2024-05-20 13:32:06	3.06
+train loss: 0.7167, valid loss: 1.1953
+test loss: 0.8406, mse: 0.8435,  lcc: 0.6998, srcc: 0.7442 
+hubert20240520_133242	2024-05-20 13:39:01	6.32
+train loss: 0.5031, valid loss: 0.6236 
+test loss: 0.8864, mse: 0.8916,  lcc: 0.6677, srcc: 0.5758 
+hubert20240520_134003	2024-05-20 13:44:15	4.19
+train loss: 0.5540, valid loss: 0.6284
+test loss: 0.7971, mse: 0.8055,  lcc: 0.7343, srcc: 0.6361 
+hubert20240520_134541	2024-05-20 13:47:01	1.33
+train loss: 1.7881, valid loss: 2.1173
+test loss: 1.4681, mse: 1.4387,  lcc: 0.2391, srcc: 0.3719 
+hubert20240520_134804	2024-05-20 13:48:23	0.31
+hubert20240520_134857	2024-05-20 15:46:42	117.75
+train loss: 1.6434, valid loss: 1.6878
+test loss: 1.6547, mse: 1.6547,  lcc: 0.3049, srcc: 0.2362 

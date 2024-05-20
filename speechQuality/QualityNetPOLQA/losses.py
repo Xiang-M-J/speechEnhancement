@@ -15,7 +15,39 @@ class FrameMse(nn.Module):
         true_pesq = target[:, 0]
 
         if self.enable:
-            return torch.mean((10 ** (true_pesq - 5)) * torch.mean((input - target) ** 2, dim=1))
+            return torch.mean((10 ** (true_pesq - 5.0)) * torch.mean((input - target) ** 2, dim=1))
+        else:
+            return 0
+
+
+class FrameMseNo(nn.Module):
+    def __init__(self, enable=True) -> None:
+        super(FrameMseNo, self).__init__()
+        self.enable = enable
+        if not enable:
+            print("warning! FrameMseNo 损失被设置为永远返回0")
+
+    def forward(self, input, target):
+        true_pesq = target[:, 0]
+
+        if self.enable:
+            return torch.mean((10 ** (true_pesq - 1.0)) * torch.mean((input - target) ** 2, dim=1))
+        else:
+            return 0
+
+
+class FrameMse2(nn.Module):
+    def __init__(self, enable=True) -> None:
+        super(FrameMse2, self).__init__()
+        self.enable = enable
+        if not enable:
+            print("warning! FrameMse2 损失被设置为永远返回0")
+
+    def forward(self, input, target):
+        if self.enable:
+            y_pred = input.squeeze(1)  # (B,T)
+            loss = torch.mean((target - y_pred.detach()) ** 2)
+            return loss
         else:
             return 0
 

@@ -9,9 +9,10 @@ import torch.nn as nn
 from torch.utils.data import dataloader
 from torch.utils.tensorboard import SummaryWriter
 from tqdm import tqdm
+import numpy as np
 
 from trainer_utils import Args, EarlyStopping, Metric, plot_metric, plot_spectrogram, plot_quantity
-from utils import getStftSpec, spec2wav, CalQuality
+from utils import getStftSpec, spec2wav, CalQuality, preprocess, CalSigmos
 from losses import QNLoss
 
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
@@ -182,6 +183,7 @@ class TrainerQSE:
 
         plt.ion()
         start_time = time.time()
+        calSigmos = CalSigmos()
 
         # 训练开始
         try:
@@ -200,13 +202,30 @@ class TrainerQSE:
 
                 model_se.eval()
                 model_qn.eval()
+                q_len = 100
+                idx = 0
+                mos_48k = {"col": [], "disc": [], "loud": [], "noise": [], "reverb": [], "sig": [], "ovrl": []}
+                mos_48k_name = list(mos_48k.keys())
+
                 with torch.no_grad():
                     loop_valid = tqdm(enumerate(valid_loader), leave=False)
-                    for batch_idx, (x, _, y, _) in loop_valid:
-                        loss, _ = self.predict(model_se, x, y, loss_fn)
+                    for batch_idx, (x, _, y, yp) in loop_valid:
+                        loss, est_x = self.predict(model_se, x, y, loss_fn)
                         valid_loss += loss
+                        batch = x.shape[0]
+                        if idx < q_len:
+                            est_wav = spec2wav(est_x, None, fft_size=self.args.fft_size, hop_size=self.args.hop_size,
+                                               win_size=self.args.fft_size, input_type=self.args.se_input_type)
+                            results = calSigmos(est_wav.cpu().detach().numpy())
+                            for i in range(7):
+                                mos_48k[mos_48k_name[i]].extend(results[i])
+                        idx += batch
                         loop_valid.set_description_str(f'Validating [{epoch + 1}/{self.epochs}]')
                         loop_valid.set_postfix_str("step: {}/{} loss: {:.4f}".format(batch_idx, valid_step, loss))
+
+                for k, v in mos_48k.items():
+                    tqdm.write(f"{k}: {np.mean(v)}", end="\t")
+                tqdm.write("")
 
                 if self.args.scheduler_type != 0:
                     scheduler.step()
@@ -310,12 +329,16 @@ class TrainerQSE:
         self.freeze_parameters(model_qn)
         metric = Metric(mode="test")
         test_step = len(test_loader)
-        calQuantity = CalQuality(fs=48000, batch=True)
+        # calQuantity = CalQuality(fs=48000, batch=True)
+        calSigmos = CalSigmos(fs=48000, batch=True)
 
         loss_fn = QNLoss(model_qn)
         test_loss = 0
-        predict_pesq = []
-        predict_stoi = []
+        metric.mos_48k = {}
+        for i in range(7):
+            metric.mos_48k[metric.mos_48k_name[i]] = []
+        # predict_pesq = []
+        # predict_stoi = []
         idx = 0
         with torch.no_grad():
             for batch_idx, (x, xp, y, yp) in tqdm(enumerate(test_loader)):
@@ -325,26 +348,38 @@ class TrainerQSE:
                 if idx < q_len:
                     est_wav = spec2wav(est_x, None, fft_size=self.args.fft_size, hop_size=self.args.hop_size,
                                        win_size=self.args.fft_size, input_type=self.args.se_input_type)
-                    p, s = calQuantity(est_wav.cpu().detach(), yp.cpu().detach())
-                    predict_pesq[idx: idx + batch] = p
-                    predict_stoi[idx: idx + batch] = s
+                    # p, s = calQuantity(est_wav.cpu().detach(), yp.cpu().detach())
+                    # predict_pesq[idx: idx + batch] = p
+                    # predict_stoi[idx: idx + batch] = s
+                    results = calSigmos(est_wav.cpu().detach().numpy())
+                    for i in range(7):
+                        metric.mos_48k[metric.mos_48k_name[i]].extend(results[i])
                 idx += batch
 
         metric.test_loss = test_loss / test_step
         print("Test loss: {:.4f}".format(metric.test_loss))
 
-        metric.pesq = predict_pesq
-        metric.stoi = predict_stoi
+        for i in range(7):
+            name = metric.mos_48k_name[i]
+            print(name)
+            print(np.mean(metric.mos_48k[name]))
+
+        # metric.pesq = predict_pesq
+        # metric.stoi = predict_stoi
 
         with open("log.txt", mode='a', encoding="utf-8") as f:
             f.write("test loss: {:.4f} \n".format(metric.test_loss))
 
-        fig1 = plot_quantity(predict_pesq, "测试语音的pesq", ylabel="pesq", result_path=self.image_path)
-        fig2 = plot_quantity(predict_stoi, "测试语音的stoi", ylabel="stoi", result_path=self.image_path)
+        # fig1 = plot_quantity(predict_pesq, "测试语音的pesq", ylabel="pesq", result_path=self.image_path)
+        # fig2 = plot_quantity(predict_stoi, "测试语音的stoi", ylabel="stoi", result_path=self.image_path)
         if self.args.save:
             self.writer.add_text("test metric", str(metric))
-            self.writer.add_figure("pesq", fig1)
-            self.writer.add_figure("stoi", fig2)
+            # self.writer.add_figure("pesq", fig1)
+            # self.writer.add_figure("stoi", fig2)
+            for i in range(7):
+                name = metric.mos_48k_name[i]
+                fig = plot_quantity(metric.mos_48k[name], f"测试语音的{name}", ylabel=name, result_path=self.image_path)
+                self.writer.add_figure(name, fig)
             np.save(self.data_path + "test_metric.npy", metric.items())
 
     def test(self, test_dataset, model: nn.Module = None, model_qn: nn.Module = None, model_path: str = None,
@@ -375,3 +410,50 @@ class TrainerQSE:
 
         end_time = time.time()
         print('Test ran for %.2f minutes' % ((end_time - start_time) / 60.))
+
+    def inference_step(self, model, noise_wav_path, target_wav_path):
+        if not os.path.exists(self.inference_result_path):
+            os.makedirs(self.inference_result_path)
+        model.eval()
+        wav_name = noise_wav_path.split('\\')[-1].split('.')[0]
+        noise_wav, fs = preprocess(noise_wav_path)
+        # calQuantity = CalQuality(fs=fs, batch=False)
+        calSigmos = CalSigmos(fs=48000, batch=False)
+        fig1 = plot_spectrogram(noise_wav, fs, self.args.fft_size, self.args.hop_size,
+                                filename=wav_name + "_带噪语音语谱图",
+                                result_path=self.inference_result_path)
+
+        target_wav, fs = preprocess(target_wav_path)
+        fig2 = plot_spectrogram(target_wav, fs, self.args.fft_size, self.args.hop_size,
+                                filename=wav_name + "_干净语音语谱图",
+                                result_path=self.inference_result_path)
+
+        feat_x, phase_x = getStftSpec(noise_wav, self.args.fft_size, self.args.hop_size, self.args.fft_size)
+        with torch.no_grad():
+            est_x = model(feat_x.unsqueeze(0).to(device)).squeeze(0).cpu().detach()
+        est_wav = spec2wav(est_x.unsqueeze(0), None, self.args.fft_size, self.args.hop_size, self.args.fft_size,
+                           self.args.se_input_type)
+        est_wav = est_wav.squeeze(0).cpu()
+        fig3 = plot_spectrogram(est_wav, fs, self.args.fft_size, self.args.hop_size,
+                                filename=wav_name + "_增强语音语谱图",
+                                result_path=self.inference_result_path)
+
+        # p, s = calQuantity(est_wav.cpu().detach().squeeze(0), target_wav)
+        # print(p, s)
+        # with open(os.path.join(self.inference_result_path, wav_name + "ps.txt"), 'w', encoding="utf-8") as f:
+        #     f.write(str(p) + "\t" + str(s) + "\n")
+        result = calSigmos(est_wav.cpu().detach().numpy())
+        print(result)
+        with open(os.path.join(self.inference_result_path, wav_name + "mos.txt"), 'w', encoding="utf-8") as f:
+            f.write(noise_wav_path)
+            for r in result:
+                f.write(str(r) + "\t")
+            f.write("\n")
+
+        denoise_wav_path = wav_name + "_denoise.wav"
+        soundfile.write(os.path.join(self.inference_result_path, denoise_wav_path), est_wav.numpy(), samplerate=48000)
+        if self.args.save:
+            self.writer.add_audio(wav_name, noise_wav, sample_rate=48000)
+            if target_wav_path is not None:
+                self.writer.add_audio(wav_name + "_无噪声", target_wav, sample_rate=48000)
+            self.writer.add_audio(wav_name + "_增强后", est_wav, sample_rate=48000)

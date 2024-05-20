@@ -25,15 +25,15 @@ def seed_everything(seed):
 
 
 if __name__ == '__main__':
-    path_se = r"D:\work\speechEnhancement\speechQuality\QualityNetPOLQA\models\dpcrn_se20240515_235913\final.pt"
-    # path_qn = r"D:\work\speechEnhancement\speechQuality\QualityNetPOLQA\models\cnn20240515_100107\final.pt"
-    path_qn = r"D:\work\speechEnhancement\speechQuality\HASANetPOLQA\models\hasa20240516_134107\final.pt"
-    # arg = Args("dpcrn_qse", model_name="dpcrn_qse20240517_150155", model2_type="hasa")
-    arg = Args("dpcrn_qse", model2_type="hasa")
+    path_se = r"D:\work\speechEnhancement\speechQuality\QualityNetPOLQA\models\dpcrn_se20240518_224558\final.pt"
+    path_qn = r"D:\work\speechEnhancement\speechQuality\QualityNetPOLQA\models\cnn20240515_100107\final.pt"
+    # path_qn = r"D:\work\speechEnhancement\speechQuality\HASANetPOLQA\models\hasa20240516_134107\final.pt"
+    # arg = Args("dpcrn_qse", model_name="dpcrn_qsehasa20240518_134721", model2_type="hasa")
+    arg = Args("dpcrn_qse", model2_type="cnn")
     arg.epochs = 15
     arg.batch_size = 12
     arg.save = True
-    arg.lr = 5e-4
+    arg.lr = 1e-4
     arg.step_size = 5
     arg.delta_loss = 2e-4
 
@@ -41,6 +41,7 @@ if __name__ == '__main__':
         raise ValueError("Model type must end with '_qse'")
     if arg.model2_type is None:
         raise ValueError("model qn type cannot be none")
+
     # 训练 CNN / tcn
     # arg.optimizer_type = 1
     # arg.enableFrame = False
@@ -64,9 +65,10 @@ if __name__ == '__main__':
     model_se = load_pretrained_model(path_se)
     model_qn = load_pretrained_model(path_qn)
 
-    # 当主模型名以_se结尾时，返回 TrainerSE，以Class结尾时，返回TrainerC，其余情况返回Trainer
     trainer = TrainerQSE(arg)
 
-    model = trainer.train(model_se, model_qn, train_dataset=train_dataset, valid_dataset=valid_dataset)
+    model_se = trainer.train(model_se, model_qn, train_dataset=train_dataset, valid_dataset=valid_dataset)
     trainer.test(test_dataset=test_dataset, model=model_se, model_qn=model_qn, q_len=500)
+    # trainer.inference_step(model_se, r"D:\work\speechEnhancement\datasets\dns_to_liang\31435_nearend.wav",
+    #                        r"D:\work\speechEnhancement\datasets\dns_to_liang\31435_target.wav")
     # trainer.test(test_dataset=test_dataset, model_path=r"D:\work\speechEnhancement\speechQuality\QualityNetPOLQA\models\QN20240508_174129\best.pt")

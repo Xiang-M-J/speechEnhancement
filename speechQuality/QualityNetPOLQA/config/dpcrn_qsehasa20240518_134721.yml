@@ -16,6 +16,7 @@ lr: 0.0005
 model2_type: hasa
 model_name: dpcrn_qsehasa20240518_134721
 model_type: dpcrn_qse
+now_time: '20240518_134721'
 optimizer_type: 3
 patience: 5
 random_seed: 34

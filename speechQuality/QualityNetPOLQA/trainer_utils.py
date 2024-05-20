@@ -4,9 +4,10 @@ import time
 
 import torch
 
-from models import QualityNet, Cnn, TCN, QualityNetAttn, QualityNetClassifier, CnnClass, Cnn2d, CnnAttn
+from models import QualityNet, Cnn, TCN, QualityNetAttn, QualityNetClassifier, CnnClass, Cnn2d, CnnAttn, HASANet
 from lstm import lstm_net
 from DPCRN import dpcrn
+from hubert import Hubert
 import numpy as np
 import yaml
 from matplotlib import pyplot as plt
@@ -20,7 +21,7 @@ dpi = 300
 forget_gate_bias = -3
 
 
-def load_dataset_qn(path, spilt_rate, fft_size=512, hop_size=256):
+def load_dataset_qn(path, spilt_rate, fft_size=512, hop_size=256, return_wav=False):
     wav_list = ListRead(path)
     random.shuffle(wav_list)
 
@@ -33,9 +34,9 @@ def load_dataset_qn(path, spilt_rate, fft_size=512, hop_size=256):
 
     Test_list = wav_list[train_length + valid_length:]
 
-    train_dataset = DNSPOLQADataset(Train_list, fft_size=fft_size, hop_size=hop_size)
-    valid_dataset = DNSPOLQADataset(Valid_list, fft_size=fft_size, hop_size=hop_size)
-    test_dataset = DNSPOLQADataset(Test_list, fft_size=fft_size, hop_size=hop_size)
+    train_dataset = DNSPOLQADataset(Train_list, fft_size=fft_size, hop_size=hop_size, return_wav=return_wav)
+    valid_dataset = DNSPOLQADataset(Valid_list, fft_size=fft_size, hop_size=hop_size, return_wav=return_wav)
+    test_dataset = DNSPOLQADataset(Test_list, fft_size=fft_size, hop_size=hop_size, return_wav=return_wav)
     return train_dataset, valid_dataset, test_dataset
 
 
@@ -90,6 +91,7 @@ class Args:
                  cnn_filter=128,
                  cnn_feature=64,
                  focal_gamma=2,
+                 normalize_output=False,
                  input_type=2,
                  ):
         """
@@ -112,6 +114,7 @@ class Args:
             smooth: 是否平滑标签 Default: True
             focal_gamma: focal loss 中的gamma
             model2_type: 第二个模型的类型
+            normalize_output: 归一化语音质量模型的输出
             input_type: 语音增强模型的输入类型（1：只输入幅度谱，2：输入幅度谱和相位谱的堆叠）
         """
 
@@ -134,11 +137,13 @@ class Args:
         self.load_weight = load_weight
         self.model2_type = model2_type
 
+        self.normalize_output = normalize_output
+
         # 语音增强模型相关
         self.se_input_type = input_type
 
         # 损失函数相关
-        self.enableFrame = enable_frame
+        self.enable_frame = enable_frame
         self.smooth = smooth
         self.score_step = score_step
         self.focal_gamma = focal_gamma
@@ -218,6 +223,8 @@ class Metric:
             self.pesq = None
             self.polqa = None
             self.stoi = None
+            self.mos_48k_name = ["MOS_COL", "MOS_DISC", "MOS_LOUD", "MOS_NOISE", "MOS_REVERB", "MOS_SIG", "MOS_OVRL"]
+            self.mos_48k = None
             if with_acc:
                 self.test_acc = 0
         else:
@@ -353,6 +360,8 @@ def load_qn_model(args: Args):
         model = QualityNetAttn(args.dropout)
     elif args.model_type == "cnn":
         model = Cnn(args.cnn_filter, args.cnn_feature, args.dropout)
+    elif args.model_type == "hasa":
+        model = HASANet()
     elif args.model_type == "cnn2d":
         model = Cnn2d()
     elif args.model_type == "cnnA":
@@ -363,6 +372,8 @@ def load_qn_model(args: Args):
         model = QualityNetClassifier(args.dropout, args.score_step)
     elif args.model_type == "cnnClass":
         model = CnnClass(args.dropout, args.score_step)
+    elif args.model_type == "hubert":
+        model = Hubert()
     else:
         raise ValueError("Invalid model type")
 
@@ -386,6 +397,22 @@ def load_se_model(args: Args):
     else:
         raise ValueError("Error se_model_type")
     return model
+
+
+class Max1ReLu(torch.autograd.Function):
+    @staticmethod
+    def forward(ctx, inp):
+        result = torch.where(inp < 0., torch.zeros_like(inp), inp)
+        result = torch.where(result > 1., torch.zeros_like(inp), result)
+        ctx.save_for_backward(result)
+        return result
+
+    @staticmethod
+    def backward(ctx, grad_output):
+        inp, = ctx.saved_tensors
+        mask = torch.torch.where( inp > 1.0 , torch.zeros_like(inp), inp)
+        mask = torch.torch.where((mask < 1e-6) , torch.zeros_like(inp), torch.ones_like(inp))
+        return grad_output * mask
 
 
 if __name__ == '__main__':

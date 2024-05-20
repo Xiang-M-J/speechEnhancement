@@ -30,7 +30,13 @@ Focal Loss:
 $$
 {\left( {{p_t}} \right)^\gamma }\log \left( {{p_t} + 1} \right)
 $$
-其中，$p_t$ 为计算得到的 EMD 损失，$p_t$ 越大，表示分类越不自信，所以为其分配更大的损失。对avgloss使用focal、对Frame使用EDMLoss，效果更好。
+其中，$p_t$ 为计算得到的 EMD 损失，$p_t$​ 越大，表示分类越不自信，所以为其分配更大的损失。对avgloss使用focal、对Frame使用EDMLoss，效果更好。
+
+CNN 应该也能计算帧损失
+
+训练Hubert 需要较小的学习率，如训练LSTM使用1e-3，训练Hubert则需要使用1e-4这样的学习率
+
+
 
 ## 实验发现
 

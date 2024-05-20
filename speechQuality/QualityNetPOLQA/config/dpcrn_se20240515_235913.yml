@@ -1,11 +1,11 @@
-batch_size: 16
+batch_size: 32
 beta1: 0.99
 beta2: 0.999
 cnn_feature: 64
 cnn_filter: 128
-delta_loss: 0.0002
+delta_loss: 0.0004
 dropout: 0.3
-enableFrame: true
+enable_frame: true
 epochs: 35
 fft_size: 512
 focal_gamma: 2
@@ -16,6 +16,8 @@ lr: 0.001
 model2_type: null
 model_name: dpcrn_se20240515_235913
 model_type: dpcrn_se
+normalize_output: true
+now_time: '20240515_235913'
 optimizer_type: 3
 patience: 5
 random_seed: 34

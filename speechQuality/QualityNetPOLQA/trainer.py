@@ -11,7 +11,8 @@ from torch.utils.tensorboard import SummaryWriter
 from tqdm import tqdm
 
 from trainer_utils import Args, EarlyStopping, Metric, plot_metric
-from losses import FrameMse
+from losses import FrameMse, FrameMse2, FrameMseNo
+from utils import norm_label
 
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
 
@@ -82,19 +83,33 @@ class Trainer:
 
     def get_loss_fn(self):
         loss1 = nn.MSELoss()
-        loss2 = FrameMse(self.args.enableFrame)
+        if "hasa" in self.args.model_type:
+            loss2 = FrameMse2(self.args.enable_frame)
+        else:
+            if self.args.normalize_output:
+                loss2 = FrameMseNo(self.args.enable_frame)
+            else:
+                loss2 = FrameMse(self.args.enable_frame)
         loss1.to(device=device)
         loss2.to(device=device)
         return loss1, loss2
 
-    def train_epoch(self, model, x, y, loss1, loss2, optimizer):
+    def train_epoch(self, model, norm, x, y, loss1, loss2, optimizer):
         y1 = y[0]
         y2 = y[1]
-        if "cnn" in self.args.model_type:
+        if self.args.normalize_output:
+            y1 = norm_label(y1)
+            y2 = norm_label(y2)
+        if "cnn" in self.args.model_type or "hubert" in self.args.model_type:
             avgS = model(x)
+            if self.args.normalize_output:
+                avgS = norm(avgS)
             loss = loss1(avgS.squeeze(-1), y1)
         else:
             frameS, avgS = model(x)
+            if self.args.normalize_output:
+                avgS = norm(avgS)
+                frameS = norm(frameS)
             l1 = loss1(avgS.squeeze(-1), y1)
             l2 = loss2(frameS, y2)
             loss = l1 + l2
@@ -104,17 +119,25 @@ class Trainer:
         optimizer.step()
         return loss.cpu().detach().numpy()
 
-    def predict(self, model, x, y, loss1, loss2):
+    def predict(self, model, norm, x, y, loss1, loss2):
         """
         Return loss, predict score, true score
         """
         y1 = y[0]
         y2 = y[1]
-        if "cnn" in self.args.model_type:
+        if self.args.normalize_output:
+            y1 = norm_label(y1)
+            y2 = norm_label(y2)
+        if "cnn" in self.args.model_type or "hubert" in self.args.model_type:
             avgS = model(x)
+            if self.args.normalize_output:
+                avgS = norm(avgS)
             loss = loss1(avgS.squeeze(-1), y1)
         else:
             frameS, avgS = model(x)
+            if self.args.normalize_output:
+                avgS = norm(avgS)
+                frameS = norm(frameS)
             l1 = loss1(avgS.squeeze(-1), y1)
             l2 = loss2(frameS, y2)
             loss = l1 + l2
@@ -152,17 +175,16 @@ class Trainer:
 
         scheduler = self.get_scheduler(optimizer, arg=self.args)
 
-        # 设置损失函数和模型
-        loss1, loss2 = self.get_loss_fn()
-        model = model.to(device)
-
         # 保存一些信息
         if self.args.save:
             self.writer.add_text("模型名", self.args.model_name)
             self.writer.add_text('超参数', str(self.args))
             try:
-                dummy_input = torch.rand(self.args.batch_size, 128, self.args.fft_size // 2 + 1).to(device)
-                if self.args.model_type == "lstmA":
+                if "hubert" in self.args.model_type:
+                    dummy_input = torch.rand(4, 1, 48000)
+                else:
+                    dummy_input = torch.rand(4, 128, self.args.fft_size // 2 + 1)
+                if self.args.model_type == "lstmA" or "hubert" in self.args.model_type:
                     # mask = torch.randn([512, 512]).to(device)
                     # self.writer.add_graph(model, dummy_input)
                     pass
@@ -170,6 +192,12 @@ class Trainer:
                     self.writer.add_graph(model, dummy_input)
             except RuntimeError as e:
                 print(e)
+
+        # 设置损失函数和模型
+        loss1, loss2 = self.get_loss_fn()
+        model = model.to(device)
+
+        norm = nn.Sigmoid().to(device)
 
         plt.ion()
         start_time = time.time()
@@ -182,7 +210,7 @@ class Trainer:
                 model.train()
                 loop_train = tqdm(enumerate(train_loader), leave=False)
                 for batch_idx, (x, y) in loop_train:
-                    loss = self.train_epoch(model, x, y, loss1, loss2, optimizer)
+                    loss = self.train_epoch(model, norm, x, y, loss1, loss2, optimizer)
                     train_loss += loss
 
                     loop_train.set_description_str(f'Training [{epoch + 1}/{self.epochs}]')
@@ -192,7 +220,7 @@ class Trainer:
                 with torch.no_grad():
                     loop_valid = tqdm(enumerate(valid_loader), leave=False)
                     for batch_idx, (x, y) in loop_valid:
-                        loss, _, _ = self.predict(model, x, y, loss1, loss2)
+                        loss, _, _ = self.predict(model, norm, x, y, loss1, loss2)
                         valid_loss += loss
                         loop_valid.set_description_str(f'Validating [{epoch + 1}/{self.epochs}]')
                         loop_valid.set_postfix_str("step: {}/{} loss: {:.4f}".format(batch_idx, valid_step, loss))
@@ -218,7 +246,11 @@ class Trainer:
                 if self.args.save:
                     if (epoch + 1) % self.save_model_epoch == 0:
                         tqdm.write(f"save model to {self.model_path}" + f"{epoch}.pt")
-                        torch.save(model, self.model_path + f"{epoch}.pt")
+                        if "hubert" in self.args.model_type:
+                            torch.save(model.state_dict(), self.model_path + f"{epoch}.pt")
+                        else:
+                            torch.save(model, self.model_path + f"{epoch}.pt")
+
                     self.writer.add_scalar('train loss', metric.train_loss[-1], epoch + 1)
                     self.writer.add_scalar('valid loss', metric.valid_loss[-1], epoch + 1)
                     self.writer.add_scalar('lr', optimizer.param_groups[0]['lr'], epoch + 1)
@@ -232,14 +264,20 @@ class Trainer:
                     best_valid_loss = metric.valid_loss[-1]
                     metric.best_valid_loss = best_valid_loss
                     if self.args.save:
-                        torch.save(model, self.best_model_path)
+                        if "hubert" in self.args.model_type:
+                            torch.save(model.state_dict(), self.best_model_path)
+                        else:
+                            torch.save(model, self.best_model_path)
                         tqdm.write(f"saving model to {self.best_model_path}")
                 else:
                     tqdm.write(f"validation loss did not decrease from {best_valid_loss}")
 
                 if early_stop(metric.valid_loss[-1]):
                     if self.args.save:
-                        torch.save(model, self.final_model_path)
+                        if "hubert" in self.args.model_type:
+                            torch.save(model.state_dict(), self.final_model_path)
+                        else:
+                            torch.save(model, self.final_model_path)
                         tqdm.write(f"early stop..., saving model to {self.final_model_path}")
                     break
             # 训练结束时需要进行的工作
@@ -253,7 +291,10 @@ class Trainer:
                     "train loss: {:.4f}, valid loss: {:.4f} \n".format(metric.train_loss[-1], metric.valid_loss[-1]))
             if self.args.save:
                 plt.clf()
-                torch.save(model, self.final_model_path)
+                if "hubert" in self.args.model_type:
+                    torch.save(model.state_dict(), self.final_model_path)
+                else:
+                    torch.save(model, self.final_model_path)
                 tqdm.write(f"save model(final): {self.final_model_path}")
                 np.save(os.path.join(self.data_path, "train_metric.npy"), metric.items())
                 fig = plot_metric({"train_loss": metric.train_loss, "valid_loss": metric.valid_loss},
@@ -274,7 +315,10 @@ class Trainer:
                 f.write("train loss: {:.4f}, valid loss: {:.4f}\n".format(metric.train_loss[-1], metric.valid_loss[-1]))
             if self.args.save:
                 plt.clf()
-                torch.save(model, self.final_model_path)
+                if "hubert" in self.args.model_type:
+                    torch.save(model.state_dict(), self.final_model_path)
+                else:
+                    torch.save(model, self.final_model_path)
                 tqdm.write(f"save model(final): {self.final_model_path}")
                 np.save(os.path.join(self.data_path, "train_metric.npy"), metric.items())
                 fig = plot_metric({"train_loss": metric.train_loss, "valid_loss": metric.valid_loss},
@@ -284,7 +328,7 @@ class Trainer:
                 self.writer.add_text("duration", "{:2f}".format((end_time - start_time) / 60.))
             return model
 
-    def test_step(self, model: nn.Module, test_loader, test_num):
+    def test_step(self, model: nn.Module, test_loader, test_num, q_len):
         """
         Args:
             model: 模型
@@ -302,10 +346,11 @@ class Trainer:
         idx = 0
         loss1, loss2 = self.get_loss_fn()
         test_loss = 0
+        norm = nn.Sigmoid().to(device)
         with torch.no_grad():
             for batch_idx, (x, y) in tqdm(enumerate(test_loader)):
                 batch = x.shape[0]
-                loss, est_polqa, true_polqa = self.predict(model, x, y, loss1, loss2)
+                loss, est_polqa, true_polqa = self.predict(model, norm, x, y, loss1, loss2)
                 test_loss += loss
                 POLQA_Predict[idx: idx + batch] = est_polqa
                 POLQA_True[idx: idx + batch] = true_polqa
@@ -344,7 +389,7 @@ class Trainer:
             plt.pause(2)
             plt.ioff()
 
-    def test(self, test_dataset, model: nn.Module = None, model_path: str = None):
+    def test(self, test_dataset, model: nn.Module = None, model_path: str = None, q_len=500):
 
         test_loader = dataloader.DataLoader(
             dataset=test_dataset,
@@ -354,18 +399,18 @@ class Trainer:
         test_num = len(test_dataset)
         start_time = time.time()
         if model is not None:
-            self.test_step(model, test_loader, test_num)
+            self.test_step(model, test_loader, test_num, q_len)
         elif model_path is None:
             model_path = self.final_model_path
             assert os.path.exists(model_path)
             print(f"load model: {model_path}")
             model = torch.load(model_path)
-            self.test_step(model, test_loader, test_num)
+            self.test_step(model, test_loader, test_num, q_len)
         elif model_path is not None:
             assert os.path.exists(model_path)
             print(f"load model: {model_path}")
             model = torch.load(model_path)
-            self.test_step(model, test_loader, test_num)
+            self.test_step(model, test_loader, test_num, q_len)
         else:
             raise "model_path and model can not be none simultaneously"
 
