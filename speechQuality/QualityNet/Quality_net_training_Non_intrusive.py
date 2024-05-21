@@ -18,9 +18,9 @@ import matplotlib
 import matplotlib.pyplot as plt
 from keras.utils import plot_model
 from keras.models import Model
-from keras.layers.core import Dense, Dropout
-from keras.layers.activation import ELU
-from keras.layers.pooling import GlobalAveragePooling1D
+from keras.layers import Dense, Dropout
+from keras.layers import ELU
+from keras.layers import GlobalAveragePooling1D
 from keras.callbacks import ModelCheckpoint
 from keras.layers import LSTM, TimeDistributed, Bidirectional, Input
 from keras.constraints import max_norm

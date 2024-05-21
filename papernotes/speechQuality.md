@@ -38,6 +38,28 @@ CNN 应该也能计算帧损失
 
 
 
+
+
+## 多维度语音质量评价
+
+MOS_COL：频谱染色
+
+MOS_DISC：连续性
+
+MOS_NOISE：降噪
+
+MOS_REVERB：混响
+
+MOS_LOUD：响度
+
+MOS_SIG：整体语音质量
+
+MOS_OVRL：整体质量
+
+上述指标越大越好
+
+
+
 ## 实验发现
 
 > [!IMPORTANT]

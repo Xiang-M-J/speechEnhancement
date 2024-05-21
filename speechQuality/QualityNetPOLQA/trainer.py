@@ -14,7 +14,7 @@ from trainer_utils import Args, EarlyStopping, Metric, plot_metric
 from losses import FrameMse, FrameMse2, FrameMseNo
 from utils import norm_label
 
-device = 'cuda' if torch.cuda.is_available() else 'cpu'
+device = torch.device('cuda') if torch.cuda.is_available() else torch.device('cpu')
 
 
 class Trainer:

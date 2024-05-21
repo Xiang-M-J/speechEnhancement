@@ -5,8 +5,8 @@ from einops.layers.torch import Rearrange
 
 
 class Hubert(nn.Module):
-    def __init__(self, d_model: int = 256, dim_feedforward: int = 512,
-                 n_heads: int = 8, num_layer: int = 12):
+    def __init__(self, d_model: int = 768, dim_feedforward: int = 1024,
+                 n_heads: int = 8, num_layer: int = 8):
         super().__init__()
         self.feature_extractor = FeatureExtractor()
         self.feature_projection = FeatureProjection(d_model)
@@ -51,7 +51,6 @@ class FeatureExtractor(nn.Module):
 
     def forward(self, x: torch.Tensor):
         x = self.gelu(self.norm0(self.conv0(x)))
-        # x = self.gelu(self.conv0(x))
         x = self.gelu(self.conv1(x))
         x = self.gelu(self.conv2(x))
         x = self.gelu(self.conv3(x))

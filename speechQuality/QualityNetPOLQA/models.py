@@ -64,6 +64,39 @@ class ConvBlock(nn.Module):
         return self.rct((self.pool(residual_x + x)))
 
 
+class Cnn2(nn.Module):
+    def __init__(self):
+        super(Cnn2, self).__init__()
+        self.conv0 = nn.Conv1d(257, 512, 3, 2)
+        self.norm0 = nn.GroupNorm(512, 512)
+        self.conv1 = nn.Conv1d(512, 512, 3, 2)
+        self.conv2 = nn.Conv1d(512, 512, 3, 2)
+        self.conv3 = nn.Conv1d(512, 512, 2, 2)
+        self.conv4 = nn.Conv1d(512, 512, 2, 2)
+        self.conv5 = nn.Conv1d(512, 512, 2, 2)
+        self.gelu = nn.GELU()
+        self.linear = nn.Sequential(
+            Rearrange("N C L -> N L C"),
+            nn.Linear(512, 64),
+            nn.Dropout(0.3),
+            nn.Linear(64, 1),
+            nn.Flatten()
+        )
+        self.pool = nn.AdaptiveAvgPool1d(1)
+
+    def forward(self, x: torch.Tensor):
+        x = x.permute(0, 2, 1)
+        x = self.gelu(self.norm0(self.conv0(x)))
+        x = self.gelu(self.conv1(x))
+        x = self.gelu(self.conv2(x))
+        x = self.gelu(self.conv3(x))
+        x = self.gelu(self.conv4(x))
+        x = self.gelu(self.conv5(x))
+        Frame = self.linear(x)
+        Avg = self.pool(Frame)
+        return Frame, Avg
+
+
 class Cnn(nn.Module):
     """
     CNN model
@@ -201,6 +234,62 @@ class CnnAttn(nn.Module):
         x = self.conv4(x)
         x = self.avg_linear(x)
         return x
+
+
+class CANBlock(nn.Module):
+    def __init__(self, channel, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.conv1 = nn.Conv1d(channel, channel, kernel_size=2, stride=2)
+        self.conv2 = nn.Conv1d(channel, channel, kernel_size=2, stride=2)
+        self.pool = nn.MaxPool1d(4)
+        self.relu = nn.ReLU()
+
+    def forward(self, x):
+        r_x = x
+        x = self.conv1(x)
+        x = self.conv2(x)
+        r_x = self.pool(r_x)
+        return self.relu(r_x + x)
+
+
+class CANClass(nn.Module):
+    def __init__(self, channels, step):
+        super(CANClass, self).__init__()
+        self.input = nn.Sequential(
+            Rearrange("N L C -> N C L"),
+            nn.Conv1d(in_channels=257, out_channels=channels, kernel_size=4, stride=2),
+            nn.GroupNorm(channels, channels),
+            nn.PReLU()
+        )
+
+        self.conv1 = CANBlock(channels)
+        self.conv2 = CANBlock(channels)
+        self.middle1 = nn.Conv1d(channels, 128, kernel_size=1)
+        self.conv3 = CANBlock(128)
+
+        self.avg = nn.Sequential(
+            nn.Conv1d(128, 128, kernel_size=2),
+            nn.AdaptiveAvgPool1d(1),
+            nn.Flatten(),
+            nn.Linear(128, 1),
+        )
+        self.classifier = nn.Sequential(
+            nn.Conv1d(128, 128, kernel_size=2),
+            nn.AdaptiveAvgPool1d(1),
+            nn.Flatten(),
+            nn.Linear(128, int(400 // int(step * 100))),
+            nn.Softmax(dim=-1)
+        )
+
+    def forward(self, x):
+        x = self.input(x)
+        x = self.conv1(x)
+        x = self.conv2(x)
+        x = self.middle1(x)
+        x = self.conv3(x)
+        avg = self.avg(x)
+        cls = self.classifier(x)
+        return avg, cls
 
 
 class CnnClass(nn.Module):
@@ -362,6 +451,7 @@ class HASANet(nn.Module):
     linear_output: 128
     act_fn: 'relu'
     """
+
     def __init__(self):
         super(HASANet, self).__init__()
         hidden_size = 100

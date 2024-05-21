@@ -1,4 +1,4 @@
-import copy
+import os
 import os
 import time
 
@@ -7,15 +7,15 @@ import numpy as np
 import soundfile
 import torch
 import torch.nn as nn
-import torchaudio
 from torch.utils.data import dataloader
 from torch.utils.tensorboard import SummaryWriter
 from tqdm import tqdm
 
-from trainer_utils import Args, EarlyStopping, Metric, plot_metric, plot_spectrogram, plot_quantity
-from utils import getStftSpec, spec2wav, CalQuality, preprocess, CalSigmos
+from trainer_utils import Args, EarlyStopping, Metric, plot_metric, plot_spectrogram, plot_quantity, load_dataset_se, \
+    load_se_model
+from utils import getStftSpec, spec2wav, preprocess, CalSigmos, seed_everything
 
-device = 'cuda' if torch.cuda.is_available() else 'cpu'
+device = torch.device('cuda') if torch.cuda.is_available() else torch.device('cpu')
 
 
 class TrainerSE:
@@ -101,7 +101,7 @@ class TrainerSE:
         optimizer.zero_grad()
         loss.backward()
         optimizer.step()
-        return loss.cpu().detach().numpy()
+        return loss.item()
 
     @staticmethod
     def predict(model, x, y, loss_fn):
@@ -112,7 +112,7 @@ class TrainerSE:
         y = y.to(device)
         y_pred = model(x)
         loss = loss_fn(y_pred, y)
-        return loss.cpu().detach().numpy(), y_pred.cpu().detach()
+        return loss.item(), y_pred.cpu().detach()
 
     def train(self, model: nn.Module, train_dataset, valid_dataset):
         print("begin train")
@@ -179,7 +179,6 @@ class TrainerSE:
                 for batch_idx, (x, _, y, _) in loop_train:
                     loss = self.train_epoch(model, x, y, loss_fn, optimizer)
                     train_loss += loss
-
                     loop_train.set_description_str(f'Training [{epoch + 1}/{self.epochs}]')
                     loop_train.set_postfix_str("step: {}/{} loss: {:.4f}".format(batch_idx, train_step, loss))
 
@@ -309,7 +308,7 @@ class TrainerSE:
                 loss, est_x = self.predict(model, x, y, loss_fn)
                 test_loss += loss
                 if idx < q_len:
-                    est_wav = spec2wav(est_x, None, fft_size=self.args.fft_size, hop_size=self.args.hop_size,
+                    est_wav = spec2wav(est_x, xp, fft_size=self.args.fft_size, hop_size=self.args.hop_size,
                                        win_size=self.args.fft_size, input_type=self.args.se_input_type)
                     # p, s = calQuantity(est_wav.cpu().detach(), yp.cpu().detach())
                     # predict_pesq[idx: idx + batch] = p
@@ -324,10 +323,12 @@ class TrainerSE:
         metric.test_loss = test_loss / test_step
         print("Test loss: {:.4f}".format(metric.test_loss))
 
+        mean_mos_str = ""
         for i in range(7):
             name = metric.mos_48k_name[i]
-            print(name)
-            print(np.mean(metric.mos_48k[name]))
+            mean_mos_str += name
+            mean_mos_str += ":{:.4f}\t".format(np.mean(metric.mos_48k[name]))
+        print(mean_mos_str)
 
         # metric.pesq = predict_pesq
         # metric.stoi = predict_stoi
@@ -346,6 +347,8 @@ class TrainerSE:
                 name = metric.mos_48k_name[i]
                 fig = plot_quantity(metric.mos_48k[name], f"测试语音的{name}", ylabel=name, result_path=self.image_path)
                 self.writer.add_figure(name, fig)
+            with open(self.image_path + "/mos.txt", "w", encoding="utf-8") as f:
+                f.write(mean_mos_str)
             np.save(self.data_path + "test_metric.npy", metric.items())
         else:
             pass
@@ -398,14 +401,12 @@ class TrainerSE:
         feat_x, phase_x = getStftSpec(noise_wav, self.args.fft_size, self.args.hop_size, self.args.fft_size)
         with torch.no_grad():
             est_x = model(feat_x.unsqueeze(0).to(device)).squeeze(0).cpu().detach()
-        est_wav = spec2wav(est_x.unsqueeze(0), None, self.args.fft_size, self.args.hop_size, self.args.fft_size,
+        est_wav = spec2wav(est_x.unsqueeze(0), phase_x, self.args.fft_size, self.args.hop_size, self.args.fft_size,
                            self.args.se_input_type)
         est_wav = est_wav.squeeze(0).cpu()
         fig3 = plot_spectrogram(est_wav, fs, self.args.fft_size, self.args.hop_size,
                                 filename=wav_name + "_增强语音语谱图",
                                 result_path=self.inference_result_path)
-        # if target_wav_path is not None:
-        # p, s = calQuantity(est_wav.cpu().detach().squeeze(0), target_wav)
         result = calSigmos(est_wav.cpu().detach().numpy())
         print(result)
         with open(os.path.join(self.inference_result_path, wav_name + "mos.txt"), 'w', encoding="utf-8") as f:
@@ -420,3 +421,39 @@ class TrainerSE:
             if target_wav_path is not None:
                 self.writer.add_audio(wav_name + "_无噪声", target_wav, sample_rate=48000)
             self.writer.add_audio(wav_name + "_增强后", est_wav, sample_rate=48000)
+
+
+if __name__ == "__main__":
+    # arg = Args("dpcrn_se", model_name="dpcrn_se20240518_224558")
+    arg = Args("lstm", task_type="_se")
+    arg.epochs = 35
+    arg.batch_size = 32
+    arg.save = True
+    arg.lr = 4e-4
+    arg.step_size = 5
+    arg.delta_loss = 1e-3
+
+    arg.se_input_type = 1
+
+    # arg.optimizer_type = 1
+
+    if arg.save:
+        arg.write(arg.model_name)
+    print(arg)
+
+    seed_everything(arg.random_seed)
+
+    # 加载用于训练语音增强模型的数据集 x: (B, L, C)  y: (B L C)
+    train_dataset, valid_dataset, test_dataset = load_dataset_se("wav_train_se.list", arg.spilt_rate,
+                                                                 arg.fft_size, arg.hop_size, arg.se_input_type)
+
+    model = load_se_model(arg)
+    # model = load_pretrained_model(
+    #     r"D:\work\speechEnhancement\speechQuality\QualityNetPOLQA\models\dpcrn_se20240518_224558\final.pt")
+
+    trainer = TrainerSE(arg)
+    model = trainer.train(model, train_dataset=train_dataset, valid_dataset=valid_dataset)
+    trainer.test(test_dataset=test_dataset, model=model, q_len=200)
+
+    trainer.inference_step(model, r"D:\work\speechEnhancement\datasets\dns_to_liang\31435_nearend.wav",
+                           r"D:\work\speechEnhancement\datasets\dns_to_liang\31435_target.wav")

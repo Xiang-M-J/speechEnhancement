@@ -9,13 +9,13 @@ import torch.nn as nn
 from torch.utils.data import dataloader
 from torch.utils.tensorboard import SummaryWriter
 from tqdm import tqdm
-import numpy as np
 
-from trainer_utils import Args, EarlyStopping, Metric, plot_metric, plot_spectrogram, plot_quantity
-from utils import getStftSpec, spec2wav, CalQuality, preprocess, CalSigmos
 from losses import QNLoss
+from trainer_utils import Args, EarlyStopping, Metric, plot_metric, plot_spectrogram, plot_quantity, load_dataset_se, \
+    load_pretrained_model
+from utils import getStftSpec, spec2wav, preprocess, CalSigmos, seed_everything
 
-device = 'cuda' if torch.cuda.is_available() else 'cpu'
+device = torch.device('cuda') if torch.cuda.is_available() else torch.device('cpu')
 
 
 class TrainerQSE:
@@ -98,8 +98,13 @@ class TrainerQSE:
         y = y.to(device)
         y_pred = model(x)
         mag_pred = torch.pow(y_pred[:, 0, :, :], 2) + torch.pow(y_pred[:, 1, :, :], 2)
-        loss = loss_fn(mag_pred)
+        mag_true = torch.pow(y[:, 0, :, :], 2) + torch.pow(y[:, 1, :, :], 2)
+        mag = torch.concat([mag_pred, mag_true], 0)
+        # GRL.apply(mag, 1)
+        loss = loss_fn(mag)  # qualityNet让loss尽可能小，即更接近0，对应的语音增强模型则让loss尽可能小
         loss.requires_grad_(True)
+        # loss_qn = -loss_fn(mag_pred)
+        # loss_qn.requires_grad_(True)
         optimizer.zero_grad()
         loss.backward()
         optimizer.step()
@@ -123,7 +128,7 @@ class TrainerQSE:
                 parameter.requires_grad = False
         else:
             for name, parameter in model.named_parameters():
-                if name in names:
+                if name.split(".")[0] in names:
                     parameter.requires_grad = False
 
     def train(self, model_se: nn.Module, model_qn: nn.Module, train_dataset, valid_dataset):
@@ -148,22 +153,18 @@ class TrainerQSE:
         valid_step = len(valid_loader)
 
         # 设置优化器、早停止和scheduler
-        if self.args.load_weight:
-            # 修改
-            optimizer = self.get_optimizer(model_se.parameters(), self.lr)
-        else:
-            optimizer = self.get_optimizer(model_se.parameters(), self.lr)
 
         early_stop = EarlyStopping(patience=self.args.patience, delta_loss=self.args.delta_loss)
-
-        scheduler = self.get_scheduler(optimizer, arg=self.args)
 
         # 设置损失函数和模型
         # loss_fn = self.get_loss_fn()
         model_se = model_se.to(device)
         model_qn = model_qn.to(device)
         self.freeze_parameters(model=model_qn)
-        loss_fn = QNLoss(model_qn)
+        loss_fn = QNLoss(model_qn, isClass=("Class" in self.args.model2_type), step=self.args.score_step).to(device)
+
+        optimizer = self.get_optimizer([{"params": model_se.parameters(), "lr": self.lr}], lr=self.lr)
+        scheduler = self.get_scheduler(optimizer, arg=self.args)
 
         # 保存一些信息
         if self.args.save:
@@ -209,12 +210,12 @@ class TrainerQSE:
 
                 with torch.no_grad():
                     loop_valid = tqdm(enumerate(valid_loader), leave=False)
-                    for batch_idx, (x, _, y, yp) in loop_valid:
+                    for batch_idx, (x, xp, y, yp) in loop_valid:
                         loss, est_x = self.predict(model_se, x, y, loss_fn)
                         valid_loss += loss
                         batch = x.shape[0]
                         if idx < q_len:
-                            est_wav = spec2wav(est_x, None, fft_size=self.args.fft_size, hop_size=self.args.hop_size,
+                            est_wav = spec2wav(est_x, xp, fft_size=self.args.fft_size, hop_size=self.args.hop_size,
                                                win_size=self.args.fft_size, input_type=self.args.se_input_type)
                             results = calSigmos(est_wav.cpu().detach().numpy())
                             for i in range(7):
@@ -224,8 +225,7 @@ class TrainerQSE:
                         loop_valid.set_postfix_str("step: {}/{} loss: {:.4f}".format(batch_idx, valid_step, loss))
 
                 for k, v in mos_48k.items():
-                    tqdm.write(f"{k}: {np.mean(v)}", end="\t")
-                tqdm.write("")
+                    print(f"{k}: {np.mean(v)}", end="\t")
 
                 if self.args.scheduler_type != 0:
                     scheduler.step()
@@ -332,7 +332,7 @@ class TrainerQSE:
         # calQuantity = CalQuality(fs=48000, batch=True)
         calSigmos = CalSigmos(fs=48000, batch=True)
 
-        loss_fn = QNLoss(model_qn)
+        loss_fn = QNLoss(model_qn, isClass=("Class" in self.args.model2_type), step=self.args.score_step)
         test_loss = 0
         metric.mos_48k = {}
         for i in range(7):
@@ -346,7 +346,7 @@ class TrainerQSE:
                 test_loss += loss
                 batch = x.shape[0]
                 if idx < q_len:
-                    est_wav = spec2wav(est_x, None, fft_size=self.args.fft_size, hop_size=self.args.hop_size,
+                    est_wav = spec2wav(est_x, xp, fft_size=self.args.fft_size, hop_size=self.args.hop_size,
                                        win_size=self.args.fft_size, input_type=self.args.se_input_type)
                     # p, s = calQuantity(est_wav.cpu().detach(), yp.cpu().detach())
                     # predict_pesq[idx: idx + batch] = p
@@ -359,10 +359,12 @@ class TrainerQSE:
         metric.test_loss = test_loss / test_step
         print("Test loss: {:.4f}".format(metric.test_loss))
 
+        mean_mos_str = ""
         for i in range(7):
             name = metric.mos_48k_name[i]
-            print(name)
-            print(np.mean(metric.mos_48k[name]))
+            mean_mos_str += name
+            mean_mos_str += ":{:.4f}\t".format(np.mean(metric.mos_48k[name]))
+        print(mean_mos_str)
 
         # metric.pesq = predict_pesq
         # metric.stoi = predict_stoi
@@ -380,6 +382,8 @@ class TrainerQSE:
                 name = metric.mos_48k_name[i]
                 fig = plot_quantity(metric.mos_48k[name], f"测试语音的{name}", ylabel=name, result_path=self.image_path)
                 self.writer.add_figure(name, fig)
+            with open(self.image_path + "/mos.txt", "w", encoding="utf-8") as f:
+                f.write(mean_mos_str)
             np.save(self.data_path + "test_metric.npy", metric.items())
 
     def test(self, test_dataset, model: nn.Module = None, model_qn: nn.Module = None, model_path: str = None,
@@ -431,7 +435,7 @@ class TrainerQSE:
         feat_x, phase_x = getStftSpec(noise_wav, self.args.fft_size, self.args.hop_size, self.args.fft_size)
         with torch.no_grad():
             est_x = model(feat_x.unsqueeze(0).to(device)).squeeze(0).cpu().detach()
-        est_wav = spec2wav(est_x.unsqueeze(0), None, self.args.fft_size, self.args.hop_size, self.args.fft_size,
+        est_wav = spec2wav(est_x.unsqueeze(0), phase_x, self.args.fft_size, self.args.hop_size, self.args.fft_size,
                            self.args.se_input_type)
         est_wav = est_wav.squeeze(0).cpu()
         fig3 = plot_spectrogram(est_wav, fs, self.args.fft_size, self.args.hop_size,
@@ -457,3 +461,53 @@ class TrainerQSE:
             if target_wav_path is not None:
                 self.writer.add_audio(wav_name + "_无噪声", target_wav, sample_rate=48000)
             self.writer.add_audio(wav_name + "_增强后", est_wav, sample_rate=48000)
+
+
+if __name__ == "__main__":
+    path_se = r"D:\work\speechEnhancement\speechQuality\QualityNetPOLQA\models\dpcrn_se20240518_224558\final.pt"
+    # path_qn = r"D:\work\speechEnhancement\speechQuality\QualityNetPOLQA\models\lstmClass20240515_200350\final.pt"
+    # path_qn = r"D:\work\speechEnhancement\speechQuality\QualityNetPOLQA\models\cnn20240515_100107\final.pt"
+    path_qn = r"D:\work\speechEnhancement\speechQuality\HASANetPOLQA\models\hasa20240516_134107\final.pt"
+    # arg = Args("dpcrn", task_type="_qse", model_name="dpcrn_se20240518_224558", model2_type="cnn")
+    arg = Args("dpcrn", task_type="_qse", model2_type="hasa")
+    arg.epochs = 15
+    arg.batch_size = 4
+    arg.save = False
+    arg.lr = 1e-4
+    arg.step_size = 5
+    arg.delta_loss = 2e-4
+
+    if not arg.model_type.endswith("_qse"):
+        raise ValueError("Model type must end with '_qse'")
+    if arg.model2_type is None:
+        raise ValueError("model qn type cannot be none")
+
+    # 训练 CNN / tcn
+    arg.optimizer_type = 3
+    # arg.enableFrame = False
+
+    # 训练分类模型
+    # arg.score_step = 0.2
+    # arg.focal_gamma = 2
+    # arg.smooth = True
+
+    print(arg)
+    if arg.save:
+        arg.write(arg.model_name)
+
+    seed_everything(arg.random_seed)
+
+    # 加载用于训练语音增强模型的数据集 x: (B, L, C)  y: (B L C) 或者 x: (B, 2, L, C)  y: (B, 2, L, C)
+    train_dataset, valid_dataset, test_dataset = load_dataset_se("wav_train_mini_se.list", arg.spilt_rate,
+                                                                 arg.fft_size, arg.hop_size, arg.se_input_type)
+
+    model_se = load_pretrained_model(path_se)
+    model_qn = load_pretrained_model(path_qn)
+
+    trainer = TrainerQSE(arg)
+
+    model_se = trainer.train(model_se, model_qn, train_dataset=train_dataset, valid_dataset=valid_dataset)
+    trainer.test(test_dataset=test_dataset, model=model_se, model_qn=model_qn, q_len=200)
+    # trainer.inference_step(model_se, r"D:\work\speechEnhancement\datasets\dns_to_liang\31435_nearend.wav",
+    #                        r"D:\work\speechEnhancement\datasets\dns_to_liang\31435_target.wav")
+    # trainer.test(test_dataset=test_dataset, model_path=r"D:\work\speechEnhancement\speechQuality\QualityNetPOLQA\models\QN20240508_174129\best.pt")

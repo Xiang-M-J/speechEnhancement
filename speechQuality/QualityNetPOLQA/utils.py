@@ -1,3 +1,5 @@
+import random
+
 import numpy as np
 import pystoi
 import torch
@@ -5,10 +7,22 @@ import torchaudio
 from torch.utils.data import Dataset
 import pesq
 from torchaudio.transforms import Resample
+from torch.utils.tensorboard import SummaryWriter
 
 from sigmos.sigmos import SigMOS
 
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+
+
+class GRL(torch.autograd.Function):
+    @staticmethod
+    def forward(ctx, x, constant):
+        ctx.constant = constant
+        return x.view_as(x)
+
+    @staticmethod
+    def backward(ctx, grad_output):
+        return grad_output.neg() * ctx.constant, None
 
 
 def Sp_and_phase(path, fft_size=512, hop_size=256, Noisy=False, compress=False):
@@ -191,7 +205,7 @@ def spec2wav(feat, phase, fft_size, hop_size, win_size, input_type=2):
     """
     if input_type == 1:
         feat = torch.pow(feat, 2)
-        comp = torch.complex(feat * torch.cos(phase), feat * torch.sin(phase))
+        comp = torch.complex(feat * torch.cos(phase), feat * torch.sin(phase)).permute([0, 2, 1])
     elif input_type == 2:
         if len(feat.shape) != 4:
             raise ValueError("feat's dimension is not 4")
@@ -283,6 +297,14 @@ def floatTensorToClass(x, step):
     return x_i.long()
 
 
+def floatNumpyToClass(x, step):
+    x_i = (x * 100 - 100).astype(np.int32)
+    x_i[x_i >= 400] = 399
+    x_i[x_i <= 0] = 0
+    x_i = x_i // int(step * 100)
+    return x_i.astype(np.int64)
+
+
 def oneHotToFloat(x: np.ndarray, step):
     """
     x : N C, C=4//step
@@ -312,6 +334,24 @@ def ListRead(path):
 
 def norm_label(y):
     return (y - 1.0) / 4.0
+
+
+def seed_everything(seed):
+    torch.manual_seed(seed)
+    torch.cuda.manual_seed_all(seed)
+    np.random.seed(seed)
+    random.seed(seed)
+    torch.backends.cudnn.deterministic = True
+
+
+def save_graph(model, dummy_input, save_path):
+    writer = SummaryWriter(save_path)
+    try:
+        writer.add_graph(model, dummy_input)
+        writer.close()
+    except Exception as e:
+        print(e)
+        writer.close()
 
 
 if __name__ == '__main__':

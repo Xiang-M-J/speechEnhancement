@@ -1,4 +1,5 @@
 import os
+import random
 import time
 
 import matplotlib.pyplot as plt
@@ -10,18 +11,17 @@ from torch.utils.data import dataloader
 from torch.utils.tensorboard import SummaryWriter
 from tqdm import tqdm
 
-from trainer_utils import Args, EarlyStopping, Metric, plot_metric
-from utils import accurate_num_cal, oneHotToFloat
+import trainer
+from losses import EDMLoss
+from trainer_utils import Args, EarlyStopping, Metric, plot_metric, load_qn_model, load_dataset_qn, confuseMatrix, plot_matrix
+from utils import accurate_num_cal, oneHotToFloat, seed_everything
 
-from losses import EDMLoss, FrameEDMLoss, AvgCrossEntropyLoss, FrameCrossEntropyLoss, \
-    disLoss, topKLoss, shiftLossWithTarget, FocalEDMLoss, FocalFrameEDMLoss
-
-device = 'cuda' if torch.cuda.is_available() else 'cpu'
+device = torch.device('cuda') if torch.cuda.is_available() else trainer.device('cpu')
 
 
 class TrainerC:
     """
-    训练
+    训练分类器
     """
 
     def __init__(self, args: Args):
@@ -84,38 +84,26 @@ class TrainerC:
             raise NotImplementedError
 
     def get_loss_fn(self):
-        loss1 = EDMLoss(self.args.score_step, self.args.smooth)
-        # loss1 = AvgCrossEntropyLoss(step=self.args.score_step)
-        # loss1 = FocalEDMLoss(self.args.score_step, self.args.smooth, self.args.focal_gamma)
-        loss2 = FrameEDMLoss(smooth=self.args.smooth, enable=self.args.enable_frame, step=self.args.score_step)
-        # loss2 = nn.MSELoss(reduction='mean')
-        # loss2 = FrameCrossEntropyLoss(enable=self.args.enableFrame, step=self.args.score_step)
-        # loss2 = FocalFrameEDMLoss(self.args.score_step, self.args.smooth, self.args.enableFrame, self.args.focal_gamma)
-        loss3 = AvgCrossEntropyLoss(step=self.args.score_step)
-        loss4 = shiftLossWithTarget(self.args.score_step, 3)
+        loss1 = nn.MSELoss()
+        loss2 = EDMLoss(self.args.score_step, self.args.smooth)
+
         loss1.to(device=device)
         loss2.to(device=device)
-        loss3.to(device=device)
-        loss4.to(device=device)
-        return [loss1, loss2, loss3, loss4]
+        return [loss1, loss2]
 
     def train_epoch(self, model, x, y, loss_fns, optimizer):
         loss1 = loss_fns[0]
         loss2 = loss_fns[1]
-        loss3 = loss_fns[2]
-        loss4 = loss_fns[3]
+
         y1 = y[0]
         y2 = y[1]
-        frameS, avgS = model(x)
-        l1 = loss1(avgS.squeeze(-1), y1)
-        l2 = loss2(frameS, y2)
-        # l3 = loss3(avgS.squeeze(-1), y1)
-        # l4 = loss4(avgS.squeeze(-1), y1)
-        # l2 = loss2(avgS.squeeze(-1), y1)
+        avg, cls = model(x)
+        l1 = loss1(avg.squeeze(-1), y1)
+        l2 = loss2(cls, y1)
         loss = l1 + l2
         # loss = loss1(avgS, y1)
         loss.requires_grad_(True)
-        accurate_num = accurate_num_cal(avgS, y1, self.args.score_step)
+        accurate_num = accurate_num_cal(cls, y1, self.args.score_step)
         optimizer.zero_grad()
         loss.backward()
         optimizer.step()
@@ -127,17 +115,14 @@ class TrainerC:
         """
         loss1 = loss_fns[0]
         loss2 = loss_fns[1]
-        loss3 = loss_fns[2]
         y1 = y[0]
         y2 = y[1]
-        frameS, avgS = model(x)
-        accurate_num = accurate_num_cal(avgS, y1, self.args.score_step)
-        l1 = loss1(avgS.squeeze(-1), y1)
-        l2 = loss2(frameS, y2)
-        # l3 = loss3(avgS.squeeze(-1), y1)
-        # l2 = loss2(avgS.squeeze(-1), y1)
+        avg, cls = model(x)
+        accurate_num = accurate_num_cal(cls, y1, self.args.score_step)
+        l1 = loss1(avg.squeeze(-1), y1)
+        l2 = loss2(cls, y1)
         loss = l1 + l2
-        return loss.cpu().detach().numpy(), oneHotToFloat(avgS.cpu().detach().numpy(),
+        return loss.cpu().detach().numpy(), oneHotToFloat(cls.cpu().detach().numpy(),
                                                           self.args.score_step), y1.cpu().detach().numpy(), accurate_num
 
     def train(self, model: nn.Module, train_dataset, valid_dataset):
@@ -343,16 +328,19 @@ class TrainerC:
         loss_fns = self.get_loss_fn()
         test_loss = 0
         test_acc_num = 0
+        cm = np.zeros([self.args.score_class_num, self.args.score_class_num])
         with torch.no_grad():
             for batch_idx, (x, y) in tqdm(enumerate(test_loader)):
                 batch = x.shape[0]
                 loss, est_polqa, true_polqa, num = self.predict(model, x, y, loss_fns)
                 test_loss += loss
                 test_acc_num += num
+                cm += confuseMatrix(true_polqa, est_polqa, self.args.score_step, self.args.score_class_num)
                 POLQA_Predict[idx: idx + batch] = est_polqa
                 POLQA_True[idx: idx + batch] = true_polqa
                 idx += batch
-
+        metric.cm = cm
+        print(metric.cm)
         metric.test_loss = test_loss / test_step
         print("Test loss: {:.4f}".format(metric.test_loss))
         metric.test_acc = test_acc_num / test_num
@@ -370,6 +358,9 @@ class TrainerC:
                 .format(metric.test_loss, metric.mse, metric.test_acc, float(metric.lcc[0][1]), metric.srcc[0]))
 
         if self.args.save:
+            fig = plot_matrix(cm, labels_name=np.arange(1, self.args.score_class_num + 1))
+            self.writer.add_figure("confusion_matrix", fig)
+            plt.clf()
             M = np.max([np.max(POLQA_Predict), 5])
             plt.clf()
             fig = plt.figure(1)
@@ -389,7 +380,7 @@ class TrainerC:
             plt.pause(2)
             plt.ioff()
 
-    def test(self, test_dataset, model: nn.Module = None, model_path: str = None, q_len=500):
+    def test(self, test_dataset, model: nn.Module = None, model_path: str = None):
 
         test_loader = dataloader.DataLoader(
             dataset=test_dataset,
@@ -416,3 +407,50 @@ class TrainerC:
 
         end_time = time.time()
         print('Test ran for %.2f minutes' % ((end_time - start_time) / 60.))
+
+
+if __name__ == "__main__":
+    arg = Args("canClass")
+    arg.epochs = 35
+    arg.batch_size = 128
+    arg.save = False
+    arg.lr = 1e-3
+    arg.step_size = 10
+    arg.delta_loss = 1e-3
+
+    # 用于 qualityNet
+    # arg.normalize_output = True
+
+    # 训练Hubert
+    # arg.optimizer_type = 1
+    # arg.enable_frame = False
+
+    # 训练 CNN / tcn
+    arg.optimizer_type = 1
+    arg.enableFrame = False
+
+    # 训练分类模型
+    # arg.score_step = 0.2
+    # arg.focal_gamma = 2
+    # arg.smooth = True
+
+    print(arg)
+    if arg.save:
+        arg.write(arg.model_name)
+
+    seed_everything(arg.random_seed)
+
+    # 加载用于预测polqa分数的数据集 x: (B, L, C), y1: (B,), y2: (B, L)
+    train_dataset, valid_dataset, test_dataset = load_dataset_qn("wav_train_qn.list", arg.spilt_rate,
+                                                                 arg.fft_size, arg.hop_size, )
+
+    model = load_qn_model(arg)
+    # model = load_pretrained_model(r"")
+
+    # 以Class结尾时，返回TrainerC
+    trainer = TrainerC(arg)
+    # model = trainer.train(model, train_dataset=train_dataset, valid_dataset=valid_dataset)
+    trainer.test(test_dataset=test_dataset, model=model)
+
+    # trainer.inference_step(model, r"D:\work\speechEnhancement\datasets\dns_to_liang\31435_nearend.wav",
+    #                        r"D:\work\speechEnhancement\datasets\dns_to_liang\31435_target.wav")

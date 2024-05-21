@@ -3,8 +3,10 @@ import random
 import time
 
 import torch
+from sklearn.metrics import classification_report, confusion_matrix
 
-from models import QualityNet, Cnn, TCN, QualityNetAttn, QualityNetClassifier, CnnClass, Cnn2d, CnnAttn, HASANet
+from models import QualityNet, Cnn, TCN, QualityNetAttn, QualityNetClassifier, CnnClass, Cnn2d, CnnAttn, HASANet, Cnn2, \
+    CANClass
 from lstm import lstm_net
 from DPCRN import dpcrn
 from hubert import Hubert
@@ -12,7 +14,7 @@ import numpy as np
 import yaml
 from matplotlib import pyplot as plt
 
-from utils import ListRead, DNSPOLQADataset, DNSDataset
+from utils import ListRead, DNSPOLQADataset, DNSDataset, floatTensorToClass, floatNumpyToClass
 
 plt.rcParams['font.sans-serif'] = ['Simhei']  # 显示中文
 plt.rcParams['axes.unicode_minus'] = False  # 显示负号
@@ -40,6 +42,11 @@ def load_dataset_qn(path, spilt_rate, fft_size=512, hop_size=256, return_wav=Fal
     return train_dataset, valid_dataset, test_dataset
 
 
+def load_pretrained_model(path):
+    model = torch.load(path)
+    return model
+
+
 def load_dataset_se(path, spilt_rate, fft_size=512, hop_size=256, input_type=2):
     wav_list = ListRead(path)
     random.shuffle(wav_list)
@@ -53,8 +60,10 @@ def load_dataset_se(path, spilt_rate, fft_size=512, hop_size=256, input_type=2):
 
     Test_list = wav_list[train_length + valid_length:]
 
-    train_dataset = DNSDataset(Train_list, fft_num=fft_size, win_shift=hop_size, win_size=fft_size, input_type=input_type)
-    valid_dataset = DNSDataset(Valid_list, fft_num=fft_size, win_shift=hop_size, win_size=fft_size, input_type=input_type)
+    train_dataset = DNSDataset(Train_list, fft_num=fft_size, win_shift=hop_size, win_size=fft_size,
+                               input_type=input_type)
+    valid_dataset = DNSDataset(Valid_list, fft_num=fft_size, win_shift=hop_size, win_size=fft_size,
+                               input_type=input_type)
     test_dataset = DNSDataset(Test_list, fft_num=fft_size, win_shift=hop_size, win_size=fft_size, input_type=input_type)
     return train_dataset, valid_dataset, test_dataset
 
@@ -62,6 +71,7 @@ def load_dataset_se(path, spilt_rate, fft_size=512, hop_size=256, input_type=2):
 class Args:
     def __init__(self,
                  model_type,
+                 task_type="",
                  model2_type=None,
                  model_name=None,
                  epochs=35,
@@ -113,16 +123,17 @@ class Args:
             enable_frame: 是否允许 Frame loss Default: True
             smooth: 是否平滑标签 Default: True
             focal_gamma: focal loss 中的gamma
-            model2_type: 第二个模型的类型
+            model2_type: 第二个模型（qualityNet）的类型
             normalize_output: 归一化语音质量模型的输出
             input_type: 语音增强模型的输入类型（1：只输入幅度谱，2：输入幅度谱和相位谱的堆叠）
+            task_type: 任务类型
         """
 
         # 基础参数
-
+        self.model_type = model_type + task_type
         if model_name is None:
             self.now_time = time.strftime('%Y%m%d_%H%M%S', time.localtime())
-            model_name = model_type + ("" if model2_type is None else model2_type)
+            model_name = self.model_type + ("" if model2_type is None else model2_type)
             self.model_name = model_name + self.now_time
         else:
             self.now_time = model_name[-15:]
@@ -130,7 +141,6 @@ class Args:
         self.epochs = epochs
         self.dropout = dropout
         self.random_seed = random_seed
-        self.model_type = model_type
         self.save = save
         self.save_model_epoch = save_model_epoch
         self.scheduler_type = scheduler_type
@@ -146,6 +156,7 @@ class Args:
         self.enable_frame = enable_frame
         self.smooth = smooth
         self.score_step = score_step
+        self.score_class_num = int(400) // int(score_step * 100)
         self.focal_gamma = focal_gamma
 
         # cnn 相关
@@ -218,6 +229,7 @@ class Metric:
             self.mode = "test"
             self.test_loss = 0
             self.mse = 0.
+            self.cm = None
             self.lcc = None
             self.srcc = None
             self.pesq = None
@@ -364,8 +376,12 @@ def load_qn_model(args: Args):
         model = HASANet()
     elif args.model_type == "cnn2d":
         model = Cnn2d()
+    elif args.model_type == "cn2n":
+        model = Cnn2()
     elif args.model_type == "cnnA":
         model = CnnAttn(args.cnn_filter, args.cnn_feature, args.dropout)
+    elif args.model_type == "canClass":
+        model = CANClass(args.cnn_filter, args.score_step)
     elif args.model_type == "tcn":
         model = TCN()
     elif args.model_type == "lstmClass":
@@ -390,9 +406,9 @@ def load_qn_model(args: Args):
 
 
 def load_se_model(args: Args):
-    if args.model_type == "lstm_se":
+    if "lstm" in args.model_type:
         model = lstm_net(args.fft_size)
-    elif args.model_type == "dpcrn_se":
+    elif "dpcrn" in args.model_type:
         model = dpcrn(args.fft_size)
     else:
         raise ValueError("Error se_model_type")
@@ -410,16 +426,95 @@ class Max1ReLu(torch.autograd.Function):
     @staticmethod
     def backward(ctx, grad_output):
         inp, = ctx.saved_tensors
-        mask = torch.torch.where( inp > 1.0 , torch.zeros_like(inp), inp)
-        mask = torch.torch.where((mask < 1e-6) , torch.zeros_like(inp), torch.ones_like(inp))
+        mask = torch.torch.where(inp > 1.0, torch.zeros_like(inp), inp)
+        mask = torch.torch.where((mask < 1e-6), torch.zeros_like(inp), torch.ones_like(inp))
         return grad_output * mask
+
+
+def report(y_true, y_pred):
+    length = y_true.shape[1]
+    r = classification_report(y_true, y_pred, target_names=np.arange(1, length + 1), output_dict=True)
+    return r
+
+
+def confuseMatrix(y_true, y_pred, step, num):
+    pred = floatNumpyToClass(y_pred, step)
+    labels = floatNumpyToClass(y_true, step)
+    cm = confusion_matrix(labels, pred, labels=np.arange(1, num + 1))
+    return cm
+
+
+def plot_matrix(cm, labels_name, title='混淆矩阵', normalize=False, result_path: str = "results/"):
+    """绘制混淆矩阵，保存并返回
+
+    Args:
+        cm: 计算出的混淆矩阵的值
+        labels_name: 标签名
+        model_name: 保存的图片名
+        title: 生成的混淆矩阵的标题
+        normalize: True:显示百分比, False:显示个数
+        result_path: 保存路径
+        best: 是否是最优模型的结果
+
+    Returns: 图窗
+
+    """
+    if normalize:
+        cm = cm.astype('float') / cm.sum(axis=1)[:, np.newaxis]
+        print("Normalized confusion matrix")
+    else:
+        print('Confusion matrix, without normalization')
+    fig = plt.figure(figsize=(10, 10), dpi=dpi)
+    # 画图，如果希望改变颜色风格，可以改变此部分的cmap=plt.get_cmap('Blues')处
+    plt.imshow(cm, interpolation='nearest', cmap=plt.get_cmap('Blues'))
+    plt.colorbar()  # 绘制图例
+    # 图像标题
+    plt.title(title)
+    # 绘制坐标
+    num_local = np.array(range(len(labels_name)))
+    axis_labels = labels_name
+    plt.xticks(num_local, axis_labels, rotation=45)  # 将标签印在x轴坐标上， 并倾斜45度
+    plt.yticks(num_local, axis_labels)  # 将标签印在y轴坐标上
+    # x,y轴长度一致(问题1解决办法）
+    plt.axis("equal")
+    # x轴处理一下，如果x轴或者y轴两边有空白的话(问题2解决办法）
+    ax = plt.gca()  # 获得当前axis
+    left, right = plt.xlim()  # 获得x轴最大最小值
+    ax.spines['left'].set_position(('data', left))
+    ax.spines['right'].set_position(('data', right))
+    for edge_i in ['top', 'bottom', 'right', 'left']:
+        ax.spines[edge_i].set_edgecolor("white")
+    thresh = cm.max() / 2.
+    # 将百分比打印在相应的格子内，大于thresh的用白字，小于的用黑字
+    for i in range(np.shape(cm)[0]):
+        for j in range(np.shape(cm)[1]):
+            if normalize:
+                plt.text(j, i, format(int(cm[i][j] * 100 + 0.5), 'd') + '%',
+                         ha="center", va="center",
+                         color="white" if cm[i][j] > thresh else "black")  # 如果要更改颜色风格，需要同时更改此行
+            else:
+                plt.text(j, i, str(int(cm[i][j])),
+                         ha="center", va="center",
+                         color="white" if cm[i][j] > thresh else "black")
+    plt.tight_layout()
+    plt.subplots_adjust(bottom=0.1)
+    plt.ylabel('真实类别')
+    plt.xlabel('预测类别')
+    img_path = os.path.join(result_path, f"cm.png")
+    plt.savefig(img_path, dpi=dpi)
+
+    return fig
 
 
 if __name__ == '__main__':
     # m = {"train": [1, 2, 3, 4, 5, 6], "test": [2, 3, 4, 5, 6, 7]}
     # plot_metric(m, "train and test", xlabel="epoch", ylabel="loss", filename="train1")
 
-    metric = Metric(mode="test")
-    metric.lcc = [[1, 2], [3, 4]]
-    metric.srcc = [[1, 2]]
-    print(metric)
+    # metric = Metric(mode="test")
+    # metric.lcc = [[1, 2], [3, 4]]
+    # metric.srcc = [[1, 2]]
+    # print(metric)
+    predict = torch.randn(64, 20)
+    true = torch.randn(64, 20)
+    cm = confuseMatrix(true, predict)
+    plot_matrix(cm, np.arange(1, 21), normalize=False)

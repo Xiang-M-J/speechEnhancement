@@ -15,7 +15,7 @@ class FrameMse(nn.Module):
         true_pesq = target[:, 0]
 
         if self.enable:
-            return torch.mean((10 ** (true_pesq - 5.0)) * torch.mean((input - target) ** 2, dim=1))
+            return torch.mean((10 ** (true_pesq - 5.0)) * torch.mean((input - true_pesq.unsqueeze(1)) ** 2, dim=1))
         else:
             return 0
 
@@ -31,7 +31,7 @@ class FrameMseNo(nn.Module):
         true_pesq = target[:, 0]
 
         if self.enable:
-            return torch.mean((10 ** (true_pesq - 1.0)) * torch.mean((input - target) ** 2, dim=1))
+            return torch.mean((10 ** (true_pesq - 1.0)) * torch.mean((input - true_pesq.unsqueeze(1)) ** 2, dim=1))
         else:
             return 0
 
@@ -273,19 +273,23 @@ class shiftLossWithTarget(nn.Module):
 
 
 class QNLoss(nn.Module):
-    def __init__(self, model):
+    def __init__(self, model, isClass, step):
         super(QNLoss, self).__init__()
         self.model = model
+        self.isClass = isClass
+        self.step = step
 
     def forward(self, input):
         # with torch.no_grad():
         score = self.model(input)
         if type(score) is tuple:
             score = score[1].squeeze(0)
+        if self.isClass:
+            score = oneHotToFloatTorch(score, self.step)
         score = (score - 1.0) / 4.0  # 放缩在 0-1之间
         score[score > 1.0] = 1.
         score[score < 0.0] = 0.
-        return torch.sum(torch.pow(1 - score, 2))
+        return torch.mean(torch.pow(1 - score, 2))
 
 
 if __name__ == "__main__":

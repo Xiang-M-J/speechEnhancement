@@ -52,25 +52,25 @@ def seed_everything(seed):
 if __name__ == '__main__':
 
     # arg = Args("dpcrn_se", model_name="dpcrn_se20240518_224558")
-    arg = Args("hubert")
-    arg.epochs = 20
-    arg.batch_size = 12
+    arg = Args("cn2n")
+    arg.epochs = 30
+    arg.batch_size = 128
     arg.save = True
-    arg.lr = 1e-4
-    arg.step_size = 5
-    arg.delta_loss = 4e-4
+    arg.lr = 5e-4
+    arg.step_size = 10
+    arg.delta_loss = 1e-3
     arg.se_input_type = 2
 
     # 用于 qualityNet
-    # arg.normalize_output = True
+    arg.normalize_output = True
 
     # 训练Hubert
-    arg.optimizer_type = 1
-    arg.enable_frame = False
+    # arg.optimizer_type = 1
+    # arg.enable_frame = False
 
     # 训练 CNN / tcn
-    # arg.optimizer_type = 1
-    # arg.enableFrame = False
+    arg.optimizer_type = 1
+    arg.enableFrame = False
 
     # 训练分类模型
     # arg.score_step = 0.2
@@ -88,7 +88,7 @@ if __name__ == '__main__':
     # train_dataset, valid_dataset, test_dataset = load_dataset(arg.model_type, "wav_train_se.list", arg.spilt_rate,
     #                                                           arg.fft_size, arg.hop_size, arg.se_input_type)
     train_dataset, valid_dataset, test_dataset = load_dataset(arg.model_type, "wav_train_qn.list", arg.spilt_rate,
-                                                              arg.fft_size, arg.hop_size, arg.se_input_type, True)
+                                                              arg.fft_size, arg.hop_size, arg.se_input_type, )
 
     model = load_model(arg)
     # model = load_pretrained_model(
