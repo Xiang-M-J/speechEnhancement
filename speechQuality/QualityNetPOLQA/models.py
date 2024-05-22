@@ -2,8 +2,6 @@ import torch
 import torch.nn as nn
 from einops.layers.torch import Rearrange
 
-from blocks import TCNLayer
-
 
 class TimeRestrictedAttention(nn.Module):
     def __init__(self, d_model, dq, heads=4, offset=64):
@@ -314,7 +312,7 @@ class CnnClass(nn.Module):
         self.conv2 = ConvBlock(filter_size, filter_size, pool_size=4, feature_dim=feature_dim, dilation=32)
         self.conv3 = ConvBlock(filter_size, filter_size, pool_size=2, feature_dim=feature_dim, dilation=16)
         self.conv4 = ConvBlock(filter_size, filter_size, pool_size=2, feature_dim=feature_dim, dilation=8)
-        self.avg_pool = nn.Sequential(
+        self.avg = nn.Sequential(
             # nn.BatchNorm1d(filter_size),
             nn.AdaptiveAvgPool1d(1),
             Rearrange("N C L -> N (C L)"),
@@ -330,28 +328,8 @@ class CnnClass(nn.Module):
         x = self.conv3(x)
         x = self.conv4(x)
         # Frame_score = self.mlp(rearrange(x, "N C L -> N L C")).squeeze(-1)
-        Average_score = self.avg_pool(x)
+        Average_score = self.avg(x)
         # Average_score = torch.clamp(Average_score, min=1, max=5)
-        return torch.tensor(0), Average_score
-
-
-class TCN(nn.Module):
-    def __init__(self, ):
-        super(TCN, self).__init__()
-        self.prepare = nn.Sequential(
-            Rearrange("N L C -> N C L"),
-            nn.Conv1d(in_channels=257, out_channels=128, kernel_size=5),
-            # nn.BatchNorm1d(num_features=256),
-            nn.ELU(),
-        )
-        self.net = TCNLayer(128, 128)
-
-        self.pool = nn.Sequential(nn.Flatten(), nn.AdaptiveAvgPool1d(1))
-
-    def forward(self, x):
-        x = self.prepare(x)
-        x = self.net(x)
-        Average_score = self.pool(x)
         return torch.tensor(0), Average_score
 
 

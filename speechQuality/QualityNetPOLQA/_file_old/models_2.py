@@ -2,7 +2,7 @@ import torch
 import torch.nn as nn
 from einops.layers.torch import Rearrange
 
-from blocks import TCNLayer
+from _file_old.blocks import TCNLayer
 
 
 class TimeRestrictedAttention(nn.Module):

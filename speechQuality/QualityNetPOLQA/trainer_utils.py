@@ -5,7 +5,7 @@ import time
 import torch
 from sklearn.metrics import classification_report, confusion_matrix
 
-from models import QualityNet, Cnn, TCN, QualityNetAttn, QualityNetClassifier, CnnClass, Cnn2d, CnnAttn, HASANet, Cnn2, \
+from models import QualityNet, Cnn, QualityNetAttn, QualityNetClassifier, CnnClass, Cnn2d, CnnAttn, HASANet, Cnn2, \
     CANClass
 from lstm import lstm_net
 from DPCRN import dpcrn
@@ -132,7 +132,8 @@ class Args:
         """
 
         # 基础参数
-        self.model_type = model_type + task_type
+        if task_type == "_se":
+            self.model_type = model_type + task_type + ("" if mask_target is None else ("_"+mask_target))
         if model_name is None:
             self.now_time = time.strftime('%Y%m%d_%H%M%S', time.localtime())
             model_name = self.model_type + ("" if model2_type is None else model2_type)
@@ -153,6 +154,7 @@ class Args:
 
         # 语音增强模型相关
         self.se_input_type = input_type
+        self.mask_target = mask_target
 
         # 损失函数相关
         self.enable_frame = enable_frame
@@ -252,24 +254,19 @@ class Metric:
                 self.valid_acc = []
                 self.best_valid_acc = 0.
 
-    def items(self) -> dict:
+    def items(self) -> np.array(dict):
         """
         返回各种指标的字典格式数据
         Returns: dict
 
         """
-        # if self.mode == "train":
-        #     data = {"train_loss": self.train_loss, "valid_loss": self.valid_loss,
-        #             'best_valid_loss': self.best_valid_loss}
-        # else:
-        #     data = {"test_loss": self.test_loss, "mse": self.mse, "lcc": self.lcc, "srcc": self.srcc}
         data = self.__dict__.copy()
         data.pop("mode")
         key_list = list(data.keys())
         for key in key_list:
             if data[key] is None:
                 data.pop(key)
-        return data
+        return np.array(data)
 
     def __str__(self) -> str:
         info = ""
@@ -384,8 +381,6 @@ def load_qn_model(args: Args):
         model = CnnAttn(args.cnn_filter, args.cnn_feature, args.dropout)
     elif args.model_type == "canClass":
         model = CANClass(args.cnn_filter, args.cnn_feature, args.score_step)
-    elif args.model_type == "tcn":
-        model = TCN()
     elif args.model_type == "lstmClass":
         model = QualityNetClassifier(args.dropout, args.score_step)
     elif args.model_type == "cnnClass":
