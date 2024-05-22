@@ -223,7 +223,7 @@ class CnnAttn(nn.Module):
             nn.Linear(filter_size, 50),
             nn.Dropout(dropout),
             nn.Linear(50, 1),
-
+            # nn.Sigmoid()
         )
 
     def forward(self, x):
@@ -243,17 +243,19 @@ class CANBlock(nn.Module):
         self.conv2 = nn.Conv1d(channel, channel, kernel_size=2, stride=2)
         self.pool = nn.MaxPool1d(4)
         self.relu = nn.ReLU()
+        self.norm = nn.BatchNorm1d(channel)
+        self.dropout = nn.Dropout(0.1)
 
     def forward(self, x):
         r_x = x
         x = self.conv1(x)
         x = self.conv2(x)
         r_x = self.pool(r_x)
-        return self.relu(r_x + x)
+        return self.dropout(self.relu(r_x + x))
 
 
 class CANClass(nn.Module):
-    def __init__(self, channels, step):
+    def __init__(self, channels,feature_dim, step):
         super(CANClass, self).__init__()
         self.input = nn.Sequential(
             Rearrange("N L C -> N C L"),
@@ -264,21 +266,21 @@ class CANClass(nn.Module):
 
         self.conv1 = CANBlock(channels)
         self.conv2 = CANBlock(channels)
-        self.middle1 = nn.Conv1d(channels, 128, kernel_size=1)
-        self.conv3 = CANBlock(128)
+        self.middle1 = nn.Conv1d(channels, feature_dim, kernel_size=1)
+        self.conv3 = CANBlock(feature_dim)
 
         self.avg = nn.Sequential(
-            nn.Conv1d(128, 128, kernel_size=2),
+            nn.Conv1d(feature_dim, feature_dim, kernel_size=2),
             nn.AdaptiveAvgPool1d(1),
             nn.Flatten(),
-            nn.Linear(128, 1),
+            nn.Linear(feature_dim, 1),
         )
         self.classifier = nn.Sequential(
-            nn.Conv1d(128, 128, kernel_size=2),
+            nn.Conv1d(feature_dim, feature_dim, kernel_size=2),
             nn.AdaptiveAvgPool1d(1),
             nn.Flatten(),
-            nn.Linear(128, int(400 // int(step * 100))),
-            nn.Softmax(dim=-1)
+            nn.Linear(feature_dim, int(400 // int(step * 100))),
+            # nn.Softmax(dim=-1)
         )
 
     def forward(self, x):
@@ -319,7 +321,6 @@ class CnnClass(nn.Module):
             # nn.Linear(in_features=filter_size, out_features=128),
             # nn.Dropout(dropout),
             nn.Linear(in_features=filter_size, out_features=int(400 // int(step * 100))),
-            nn.Softmax(dim=-1),
         )
 
     def forward(self, x):
@@ -439,7 +440,7 @@ class QualityNetClassifier(nn.Module):
         l1 = self.linear1(lstm_out)
         Frame_score = self.linear2(l1)
         Average_score = self.pool(Frame_score)
-        return torch.softmax(Frame_score, dim=-1), torch.softmax(Average_score, dim=-1)
+        return Frame_score, Average_score
 
 
 class HASANet(nn.Module):
@@ -473,11 +474,18 @@ class HASANet(nn.Module):
         # self.act = nn.LeakyReLU()
         self.hasqiaverage_score = nn.AdaptiveAvgPool1d(1)
 
+    @staticmethod
+    def get_attn_mask(seq_len, offset):
+        mask = torch.ones([seq_len, seq_len], dtype=torch.bool)
+        mask = torch.tril(mask, offset) * torch.triu(mask, -offset)
+        return mask
+
     def forward(self, x):  # hl:(B,6)
 
         out, _ = self.blstm(x)  # (B,T, 2*hidden)
         out = self.dropout(self.act_fn(self.linear1(out))).transpose(0, 1)  #(T_length, B,  128)
-        hasqi, _ = self.hasqiAtt_layer(out, out, out)
+        mask = self.get_attn_mask(x.shape[1], offset=128).to(x.device)
+        hasqi, _ = self.hasqiAtt_layer(out, out, out, attn_mask=mask)
         hasqi = hasqi.transpose(0, 1)  # (B, T_length, 128)
         hasqi = self.ln(hasqi)
         hasqi = self.hasqiframe_score(hasqi)  # (B, T_length, 1)

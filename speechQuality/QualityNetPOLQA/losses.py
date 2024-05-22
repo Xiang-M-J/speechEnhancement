@@ -273,15 +273,14 @@ class shiftLossWithTarget(nn.Module):
 
 
 class QNLoss(nn.Module):
-    def __init__(self, model, isClass, step):
+    def __init__(self, isClass, step):
         super(QNLoss, self).__init__()
-        self.model = model
         self.isClass = isClass
         self.step = step
 
-    def forward(self, input):
+    def forward(self, model, input):
         # with torch.no_grad():
-        score = self.model(input)
+        score = model(input)
         if type(score) is tuple:
             score = score[1].squeeze(0)
         if self.isClass:
@@ -290,6 +289,41 @@ class QNLoss(nn.Module):
         score[score > 1.0] = 1.
         score[score < 0.0] = 0.
         return torch.mean(torch.pow(1 - score, 2))
+
+
+class FocalCrossEntropyLoss(nn.Module):
+    def __init__(self, enable=True, step=0.2):
+        super(FocalCrossEntropyLoss, self).__init__()
+        self.base_loss = nn.CrossEntropyLoss()
+
+    def forward(self, input, target):
+        """
+        input: N C
+        target: N / N C
+        """
+        if len(target.shape) == 2:
+            target_class = torch.max(target, -1)[1]
+        else:
+            target_class = target.long()
+        pt = torch.exp(-self.base_loss(input, target))
+
+
+class CriticLoss(nn.Module):
+    def __init__(self, isClass, step):
+        super(CriticLoss, self).__init__()
+        self.isClass = isClass
+        self.step = step
+
+    def forward(self, model, input):
+        score = model(input)
+        if type(score) is tuple:
+            score = score[1].squeeze(0)
+        if self.isClass:
+            score = oneHotToFloatTorch(score, self.step)
+        score = (score - 1.0) / 4.0  # 放缩在 0-1之间
+        score[score > 1.0] = 1.
+        score[score < 0.0] = 0.
+        return torch.mean(score)
 
 
 if __name__ == "__main__":

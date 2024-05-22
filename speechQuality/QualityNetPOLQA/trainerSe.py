@@ -97,7 +97,7 @@ class TrainerSE:
         x = x.to(device)
         y = y.to(device)
         y_pred = model(x)
-        loss = loss_fn(y_pred, y)
+        loss = loss_fn(y_pred * torch.pow(x, 2), torch.pow(y, 2))
         optimizer.zero_grad()
         loss.backward()
         optimizer.step()
@@ -111,7 +111,7 @@ class TrainerSE:
         x = x.to(device)
         y = y.to(device)
         y_pred = model(x)
-        loss = loss_fn(y_pred, y)
+        loss = loss_fn(y_pred * torch.pow(x, 2), torch.pow(y, 2))
         return loss.item(), y_pred.cpu().detach()
 
     def train(self, model: nn.Module, train_dataset, valid_dataset):
@@ -308,8 +308,11 @@ class TrainerSE:
                 loss, est_x = self.predict(model, x, y, loss_fn)
                 test_loss += loss
                 if idx < q_len:
-                    est_wav = spec2wav(est_x, xp, fft_size=self.args.fft_size, hop_size=self.args.hop_size,
-                                       win_size=self.args.fft_size, input_type=self.args.se_input_type)
+
+                    # est_wav = spec2wav(est_x, xp, fft_size=self.args.fft_size, hop_size=self.args.hop_size,
+                    #                    win_size=self.args.fft_size, input_type=self.args.se_input_type)
+                    est_wav = spec2wav(x, xp, fft_size=self.args.fft_size, hop_size=self.args.hop_size,
+                                       win_size=self.args.fft_size, input_type=self.args.se_input_type, mask=est_x)
                     # p, s = calQuantity(est_wav.cpu().detach(), yp.cpu().detach())
                     # predict_pesq[idx: idx + batch] = p
                     # predict_stoi[idx: idx + batch] = s
@@ -398,7 +401,7 @@ class TrainerSE:
                                 filename=wav_name + "_干净语音语谱图",
                                 result_path=self.inference_result_path)
 
-        feat_x, phase_x = getStftSpec(noise_wav, self.args.fft_size, self.args.hop_size, self.args.fft_size)
+        feat_x, phase_x = getStftSpec(noise_wav, self.args.fft_size, self.args.hop_size, self.args.fft_size, self.args.se_input_type)
         with torch.no_grad():
             est_x = model(feat_x.unsqueeze(0).to(device)).squeeze(0).cpu().detach()
         est_wav = spec2wav(est_x.unsqueeze(0), phase_x, self.args.fft_size, self.args.hop_size, self.args.fft_size,
@@ -427,11 +430,11 @@ if __name__ == "__main__":
     # arg = Args("dpcrn_se", model_name="dpcrn_se20240518_224558")
     arg = Args("lstm", task_type="_se")
     arg.epochs = 35
-    arg.batch_size = 32
+    arg.batch_size = 64
     arg.save = True
     arg.lr = 4e-4
     arg.step_size = 5
-    arg.delta_loss = 1e-3
+    arg.delta_loss = 2e-4
 
     arg.se_input_type = 1
 

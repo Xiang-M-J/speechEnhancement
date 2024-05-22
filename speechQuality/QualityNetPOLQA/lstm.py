@@ -19,7 +19,9 @@ class lstm_net(nn.Module):
         self.lstm2 = nn.LSTM(input_size=512, hidden_size=512, num_layers=2, batch_first=True, bidirectional=True)
         self.fc = nn.Sequential(
             nn.Linear(in_features=512 * 2, out_features=freq_len),
-            nn.Softplus())
+            # nn.Sigmoid(),  # 预测 IRM 0-1
+            nn.Softplus()
+        )
 
     def forward(self, x):
         # x = self.ln(x)

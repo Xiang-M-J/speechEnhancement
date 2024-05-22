@@ -12,8 +12,9 @@ from torch.utils.tensorboard import SummaryWriter
 from tqdm import tqdm
 
 import trainer
-from losses import EDMLoss
-from trainer_utils import Args, EarlyStopping, Metric, plot_metric, load_qn_model, load_dataset_qn, confuseMatrix, plot_matrix
+from losses import EDMLoss, AvgCrossEntropyLoss
+from trainer_utils import Args, EarlyStopping, Metric, plot_metric, load_qn_model, load_dataset_qn, confuseMatrix, \
+    plot_matrix, load_pretrained_model
 from utils import accurate_num_cal, oneHotToFloat, seed_everything
 
 device = torch.device('cuda') if torch.cuda.is_available() else trainer.device('cpu')
@@ -85,7 +86,8 @@ class TrainerC:
 
     def get_loss_fn(self):
         loss1 = nn.MSELoss()
-        loss2 = EDMLoss(self.args.score_step, self.args.smooth)
+        # loss2 = EDMLoss(self.args.score_step, self.args.smooth)
+        loss2 = AvgCrossEntropyLoss(step=self.args.score_step)
 
         loss1.to(device=device)
         loss2.to(device=device)
@@ -107,7 +109,7 @@ class TrainerC:
         optimizer.zero_grad()
         loss.backward()
         optimizer.step()
-        return loss.cpu().detach().numpy(), accurate_num
+        return loss.item(), accurate_num
 
     def predict(self, model, x, y, loss_fns):
         """
@@ -122,8 +124,9 @@ class TrainerC:
         l1 = loss1(avg.squeeze(-1), y1)
         l2 = loss2(cls, y1)
         loss = l1 + l2
-        return loss.cpu().detach().numpy(), oneHotToFloat(cls.cpu().detach().numpy(),
-                                                          self.args.score_step), y1.cpu().detach().numpy(), accurate_num
+        predict_cls = oneHotToFloat(cls.cpu().detach().numpy(), self.args.score_step)
+        predict_avg = avg.squeeze(-1).cpu().detach().numpy()
+        return loss.item(), (predict_cls + predict_cls)/2, y1.cpu().detach().numpy(), accurate_num
 
     def train(self, model: nn.Module, train_dataset, valid_dataset):
         print("begin train")
@@ -358,7 +361,7 @@ class TrainerC:
                 .format(metric.test_loss, metric.mse, metric.test_acc, float(metric.lcc[0][1]), metric.srcc[0]))
 
         if self.args.save:
-            fig = plot_matrix(cm, labels_name=np.arange(1, self.args.score_class_num + 1))
+            fig = plot_matrix(cm, labels_name=np.arange(1, self.args.score_class_num + 1), result_path=self.image_path)
             self.writer.add_figure("confusion_matrix", fig)
             plt.clf()
             M = np.max([np.max(POLQA_Predict), 5])
@@ -411,12 +414,15 @@ class TrainerC:
 
 if __name__ == "__main__":
     arg = Args("canClass")
+    # arg = Args("canClass", model_name="canClass20240521_203520")
     arg.epochs = 35
     arg.batch_size = 128
     arg.save = False
-    arg.lr = 1e-3
+    arg.lr = 5e-4
     arg.step_size = 10
     arg.delta_loss = 1e-3
+    arg.cnn_filter = 128
+    arg.cnn_feature = 64
 
     # 用于 qualityNet
     # arg.normalize_output = True
@@ -441,15 +447,15 @@ if __name__ == "__main__":
     seed_everything(arg.random_seed)
 
     # 加载用于预测polqa分数的数据集 x: (B, L, C), y1: (B,), y2: (B, L)
-    train_dataset, valid_dataset, test_dataset = load_dataset_qn("wav_train_qn.list", arg.spilt_rate,
+    train_dataset, valid_dataset, test_dataset = load_dataset_qn("wav_polqa_mini.list", arg.spilt_rate,
                                                                  arg.fft_size, arg.hop_size, )
 
     model = load_qn_model(arg)
-    # model = load_pretrained_model(r"")
+    # model = load_pretrained_model(r"models\canClass20240521_203520\final.pt")
 
     # 以Class结尾时，返回TrainerC
     trainer = TrainerC(arg)
-    # model = trainer.train(model, train_dataset=train_dataset, valid_dataset=valid_dataset)
+    model = trainer.train(model, train_dataset=train_dataset, valid_dataset=valid_dataset)
     trainer.test(test_dataset=test_dataset, model=model)
 
     # trainer.inference_step(model, r"D:\work\speechEnhancement\datasets\dns_to_liang\31435_nearend.wav",

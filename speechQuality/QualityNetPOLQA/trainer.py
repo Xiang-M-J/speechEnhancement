@@ -23,8 +23,6 @@ class Trainer:
     """
 
     def __init__(self, args: Args):
-        if "Class" in args.model_type:
-            raise TypeError("Error model type")
         self.args: Args = args
         self.optimizer_type = args.optimizer_type
         self.model_path = f"models/{args.model_name}/"
@@ -117,7 +115,7 @@ class Trainer:
         optimizer.zero_grad()
         loss.backward()
         optimizer.step()
-        return loss.cpu().detach().numpy()
+        return loss.item()
 
     def predict(self, model, norm, x, y, loss1, loss2):
         """
@@ -141,7 +139,7 @@ class Trainer:
             l1 = loss1(avgS.squeeze(-1), y1)
             l2 = loss2(frameS, y2)
             loss = l1 + l2
-        return loss.cpu().detach().numpy(), avgS.squeeze(-1).cpu().detach().numpy(), y1.cpu().detach().numpy()
+        return loss.item(), avgS.squeeze(-1).cpu().detach().numpy(), y1.cpu().detach().numpy()
 
     def train(self, model: nn.Module, train_dataset, valid_dataset):
         print("begin train")
@@ -328,7 +326,7 @@ class Trainer:
                 self.writer.add_text("duration", "{:2f}".format((end_time - start_time) / 60.))
             return model
 
-    def test_step(self, model: nn.Module, test_loader, test_num, q_len):
+    def test_step(self, model: nn.Module, test_loader, test_num):
         """
         Args:
             model: 模型
@@ -389,7 +387,7 @@ class Trainer:
             plt.pause(2)
             plt.ioff()
 
-    def test(self, test_dataset, model: nn.Module = None, model_path: str = None, q_len=500):
+    def test(self, test_dataset, model: nn.Module = None, model_path: str = None):
 
         test_loader = dataloader.DataLoader(
             dataset=test_dataset,
@@ -399,18 +397,18 @@ class Trainer:
         test_num = len(test_dataset)
         start_time = time.time()
         if model is not None:
-            self.test_step(model, test_loader, test_num, q_len)
+            self.test_step(model, test_loader, test_num)
         elif model_path is None:
             model_path = self.final_model_path
             assert os.path.exists(model_path)
             print(f"load model: {model_path}")
             model = torch.load(model_path)
-            self.test_step(model, test_loader, test_num, q_len)
+            self.test_step(model, test_loader, test_num)
         elif model_path is not None:
             assert os.path.exists(model_path)
             print(f"load model: {model_path}")
             model = torch.load(model_path)
-            self.test_step(model, test_loader, test_num, q_len)
+            self.test_step(model, test_loader, test_num)
         else:
             raise "model_path and model can not be none simultaneously"
 

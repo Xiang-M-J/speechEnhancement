@@ -1,5 +1,4 @@
 import os
-import random
 import time
 
 import matplotlib.pyplot as plt
@@ -88,34 +87,42 @@ class TrainerSEJ:
         loss_fn.to(device=device)
         return loss_fn
 
-    @staticmethod
-    def train_epoch(model, x, y, loss_fn, loss_fn2, optimizer):
+    def train_epoch(self, model, model_qn, x, y, loss_fn, loss_fn2, optimizer):
         x = x.to(device)
         y = y.to(device)
         y_pred = model(x)
-        mag_pred = torch.pow(y_pred[:, 0, :, :], 2) + torch.pow(y_pred[:, 1, :, :], 2)
-        l1 = loss_fn(mag_pred)
+        if self.args.se_input_type == 2:
+            mag_pred = torch.pow(y_pred[:, 0, :, :], 2) + torch.pow(y_pred[:, 1, :, :], 2)
+            # mag_true = torch.pow(y[:, 0, :, :], 2) + torch.pow(y[:, 1, :, :], 2)
+        else:
+            mag_pred = torch.pow(y_pred, 2)
+            # mag_true = torch.pow(y, 2)
+        l1 = loss_fn(model_qn, mag_pred)
         l2 = loss_fn2(y_pred, y)
         loss = l1 + l2
         loss.requires_grad_(True)
         optimizer.zero_grad()
         loss.backward()
         optimizer.step()
-        return loss.cpu().detach().numpy()
+        return loss.item()
 
-    @staticmethod
-    def predict(model, x, y, loss_fn, loss_fn2):
+    def predict(self, model, model_qn, x, y, loss_fn, loss_fn2):
         """
         Return loss, y_pred
         """
         x = x.to(device)
         y = y.to(device)
         y_pred = model(x)
-        mag_pred = torch.pow(y_pred[:, 0, :, :], 2) + torch.pow(y_pred[:, 1, :, :], 2)
-        l1 = loss_fn(mag_pred)
+        if self.args.se_input_type == 2:
+            mag_pred = torch.pow(y_pred[:, 0, :, :], 2) + torch.pow(y_pred[:, 1, :, :], 2)
+            # mag_true = torch.pow(y[:, 0, :, :], 2) + torch.pow(y[:, 1, :, :], 2)
+        else:
+            mag_pred = torch.pow(y_pred, 2)
+            # mag_true = torch.pow(y, 2)
+        l1 = loss_fn(model_qn, mag_pred)
         l2 = loss_fn2(y_pred, y)
         loss = l1 + l2
-        return loss.cpu().detach().numpy(), y_pred.cpu().detach()
+        return loss.item(), y_pred.cpu().detach()
 
     def freeze_parameters(self, model: nn.Module, names=None):
         if names is None:
@@ -156,7 +163,7 @@ class TrainerSEJ:
         model_se = model_se.to(device)
         model_qn = model_qn.to(device)
         self.freeze_parameters(model=model_qn, names=None)
-        loss_fn = QNLoss(model_qn, isClass=("Class" in self.args.model2_type), step=self.args.score_step).to(device)
+        loss_fn = QNLoss(isClass=("Class" in self.args.model2_type), step=self.args.score_step).to(device)
         loss_fn2 = nn.MSELoss(reduction='mean').to(device)
 
         optimizer = self.get_optimizer(
@@ -192,7 +199,7 @@ class TrainerSEJ:
                 model_qn.train()
                 loop_train = tqdm(enumerate(train_loader), leave=False)
                 for batch_idx, (x, _, y, _) in loop_train:
-                    loss = self.train_epoch(model_se, x, y, loss_fn, loss_fn2, optimizer)
+                    loss = self.train_epoch(model_se, model_qn, x, y, loss_fn, loss_fn2, optimizer)
                     train_loss += loss
 
                     loop_train.set_description_str(f'Training [{epoch + 1}/{self.epochs}]')
@@ -208,7 +215,7 @@ class TrainerSEJ:
                 with torch.no_grad():
                     loop_valid = tqdm(enumerate(valid_loader), leave=False)
                     for batch_idx, (x, xp, y, yp) in loop_valid:
-                        loss, est_x = self.predict(model_se, x, y, loss_fn, loss_fn2)
+                        loss, est_x = self.predict(model_se, model_qn, x, y, loss_fn, loss_fn2)
                         valid_loss += loss
                         batch = x.shape[0]
                         if idx < q_len:
@@ -221,9 +228,10 @@ class TrainerSEJ:
                         loop_valid.set_description_str(f'Validating [{epoch + 1}/{self.epochs}]')
                         loop_valid.set_postfix_str("step: {}/{} loss: {:.4f}".format(batch_idx, valid_step, loss))
 
+                print("")
                 for k, v in mos_48k.items():
-                    tqdm.write(f"{k}: {np.mean(v)}", end="\t")
-                tqdm.write("")
+                    print(f"{k}: {np.mean(v)}", end="\t")
+                print("")
 
                 if self.args.scheduler_type != 0:
                     scheduler.step()
@@ -275,7 +283,7 @@ class TrainerSEJ:
             tqdm.write('Train ran for %.2f minutes' % ((end_time - start_time) / 60.))
             with open("log.txt", mode='a', encoding="utf-8") as f:
                 f.write(
-                    self.args.model_name + f"\t{time.strftime('%Y-%m-%d %H:%M:%S', time.localtime())}\t" + "{:.2f}".format(
+                    self.args.model_name + f"\t{time.strftime('%Y%m%d %H%M%S', time.localtime())}\t" + "{:.2f}".format(
                         (end_time - start_time) / 60.) + "\n")
                 f.write(
                     "train loss: {:.4f}, valid loss: {:.4f} \n".format(metric.train_loss[-1], metric.valid_loss[-1]))
@@ -297,7 +305,7 @@ class TrainerSEJ:
             tqdm.write('Train ran for %.2f minutes' % ((end_time - start_time) / 60.))
             with open("log.txt", mode='a', encoding="utf-8") as f:
                 f.write(
-                    self.args.model_name + f"\t{time.strftime('%Y-%m-%d %H:%M:%S', time.localtime())}\t" + "{:.2f}".format(
+                    self.args.model_name + f"\t{time.strftime('%Y%m%d %H%M%S', time.localtime())}\t" + "{:.2f}".format(
                         (end_time - start_time) / 60.) + "\n")
                 f.write("train loss: {:.4f}, valid loss: {:.4f}\n".format(metric.train_loss[-1], metric.valid_loss[-1]))
             if self.args.save:
@@ -330,7 +338,7 @@ class TrainerSEJ:
         # calQuantity = CalQuality(fs=48000, batch=True)
         calSigmos = CalSigmos(fs=48000, batch=True)
 
-        loss_fn = QNLoss(model_qn, isClass=("Class" in self.args.model2_type), step=self.args.score_step).to(device)
+        loss_fn = QNLoss(isClass=("Class" in self.args.model2_type), step=self.args.score_step).to(device)
         loss_fn2 = nn.MSELoss().to(device)
         test_loss = 0
         metric.mos_48k = {}
@@ -341,7 +349,7 @@ class TrainerSEJ:
         idx = 0
         with torch.no_grad():
             for batch_idx, (x, xp, y, yp) in tqdm(enumerate(test_loader)):
-                loss, est_x = self.predict(model, x, y, loss_fn, loss_fn2)
+                loss, est_x = self.predict(model, model_qn, x, y, loss_fn, loss_fn2)
                 test_loss += loss
                 batch = x.shape[0]
                 if idx < q_len:
@@ -431,7 +439,7 @@ class TrainerSEJ:
                                 filename=wav_name + "_干净语音语谱图",
                                 result_path=self.inference_result_path)
 
-        feat_x, phase_x = getStftSpec(noise_wav, self.args.fft_size, self.args.hop_size, self.args.fft_size)
+        feat_x, phase_x = getStftSpec(noise_wav, self.args.fft_size, self.args.hop_size, self.args.fft_size, self.args.se_input_type)
         with torch.no_grad():
             est_x = model(feat_x.unsqueeze(0).to(device)).squeeze(0).cpu().detach()
         est_wav = spec2wav(est_x.unsqueeze(0), phase_x, self.args.fft_size, self.args.hop_size, self.args.fft_size,

@@ -103,6 +103,7 @@ class Args:
                  focal_gamma=2,
                  normalize_output=False,
                  input_type=2,
+                 mask_target=None
                  ):
         """
         Args:
@@ -127,6 +128,7 @@ class Args:
             normalize_output: 归一化语音质量模型的输出
             input_type: 语音增强模型的输入类型（1：只输入幅度谱，2：输入幅度谱和相位谱的堆叠）
             task_type: 任务类型
+            mask_target: 是否训练mask(IAM)
         """
 
         # 基础参数
@@ -381,7 +383,7 @@ def load_qn_model(args: Args):
     elif args.model_type == "cnnA":
         model = CnnAttn(args.cnn_filter, args.cnn_feature, args.dropout)
     elif args.model_type == "canClass":
-        model = CANClass(args.cnn_filter, args.score_step)
+        model = CANClass(args.cnn_filter, args.cnn_feature, args.score_step)
     elif args.model_type == "tcn":
         model = TCN()
     elif args.model_type == "lstmClass":
@@ -500,7 +502,7 @@ def plot_matrix(cm, labels_name, title='混淆矩阵', normalize=False, result_p
     plt.subplots_adjust(bottom=0.1)
     plt.ylabel('真实类别')
     plt.xlabel('预测类别')
-    img_path = os.path.join(result_path, f"cm.png")
+    img_path = os.path.join(result_path, f"{title}.png")
     plt.savefig(img_path, dpi=dpi)
 
     return fig

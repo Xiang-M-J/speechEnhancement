@@ -1,5 +1,5 @@
 import random
-
+import logging
 import numpy as np
 import pystoi
 import torch
@@ -8,6 +8,7 @@ from torch.utils.data import Dataset
 import pesq
 from torchaudio.transforms import Resample
 from torch.utils.tensorboard import SummaryWriter
+from scipy.special import softmax
 
 from sigmos.sigmos import SigMOS
 
@@ -197,7 +198,7 @@ def preprocess(wav_path):
     return wav.squeeze(0), fs
 
 
-def spec2wav(feat, phase, fft_size, hop_size, win_size, input_type=2):
+def spec2wav(feat, phase, fft_size, hop_size, win_size, input_type=2, mask=None):
     """
     feat:
     input type == 1:   [N L C]
@@ -205,6 +206,8 @@ def spec2wav(feat, phase, fft_size, hop_size, win_size, input_type=2):
     """
     if input_type == 1:
         feat = torch.pow(feat, 2)
+        if mask is not None:
+            feat = feat * mask
         comp = torch.complex(feat * torch.cos(phase), feat * torch.sin(phase)).permute([0, 2, 1])
     elif input_type == 2:
         if len(feat.shape) != 4:
@@ -309,13 +312,9 @@ def oneHotToFloat(x: np.ndarray, step):
     """
     x : N C, C=4//step
     """
-    if x.shape[1] == 1:
-        value = x.squeeze(-1)
-        value[value >= 5.0] = 5.0
-        value[value <= 1.0] = 1.0
-        return value
+    x_ = softmax(x, -1)
     value = np.arange(1.0, 5.0, step)
-    return np.dot(x, value)
+    return np.dot(x_, value)
 
 
 def oneHotToFloatTorch(x: torch.Tensor, step):
@@ -323,7 +322,7 @@ def oneHotToFloatTorch(x: torch.Tensor, step):
     x : N C, C=4//step
     """
     value = torch.arange(1.0, 5.0, step).to(x.device).unsqueeze(1)
-    return x @ value
+    return torch.softmax(x, dim=-1) @ value
 
 
 def ListRead(path):
@@ -352,6 +351,23 @@ def save_graph(model, dummy_input, save_path):
     except Exception as e:
         print(e)
         writer.close()
+
+
+def get_logging(filename):
+    logger = logging.getLogger(__name__)
+    logger.setLevel(level=logging.INFO)
+    handler = logging.FileHandler(filename)
+    handler.setLevel(logging.INFO)
+    formatter = logging.Formatter('%(asctime)s %(filename)s %(message)s')
+    handler.setFormatter(formatter)
+
+    console = logging.StreamHandler()
+    console.setLevel(logging.INFO)
+
+    logger.addHandler(handler)
+    logger.addHandler(console)
+
+    return logger
 
 
 if __name__ == '__main__':
