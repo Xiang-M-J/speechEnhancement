@@ -93,7 +93,7 @@ if __name__ == '__main__':
     model_dir = r"."
     sigmos_estimator = SigMOS(model_dir=model_dir)
 
-    # input data must have sr=48kHz, otherwise please specify the sr (it will be resampled to 48kHz internally)
+    # inp data must have sr=48kHz, otherwise please specify the sr (it will be resampled to 48kHz internally)
     sampling_rate = 48_000
     dummy_data = np.random.rand(5 * sampling_rate)
     dummy_result = sigmos_estimator.run(dummy_data, sr=sampling_rate)

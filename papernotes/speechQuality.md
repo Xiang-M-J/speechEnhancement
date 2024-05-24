@@ -1,6 +1,8 @@
 ## 一些想法
 
-CNN + 注意力（受限的的注意力，Restricted Self-Attention） + 时间编码
+CNN + 注意力（受限的注意力，Restricted Self-Attention） + 时间编码
+
+**受限的注意力不太行**
 
 将注意力放在最后全局平均池化中（好像不太行）
 

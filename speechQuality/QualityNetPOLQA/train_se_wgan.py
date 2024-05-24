@@ -3,18 +3,16 @@ import time
 
 import matplotlib.pyplot as plt
 import numpy as np
-import soundfile
 import torch
 import torch.nn as nn
 from torch.utils.data import dataloader
-from torch.utils.tensorboard import SummaryWriter
 from tqdm import tqdm
 
+from losses import CriticLoss
 from trainer_base import TrainerBase
-from losses import QNLoss, CriticLoss
-from trainer_utils import Args, EarlyStopping, Metric, plot_metric, plot_spectrogram, plot_quantity, \
+from trainer_utils import Args, EarlyStopping, Metric, plot_metric, plot_quantity, \
     load_pretrained_model, load_dataset_se, load_se_model
-from utils import getStftSpec, spec2wav, preprocess, CalSigmos, GRL, seed_everything
+from utils import cal_mask_target, spec2wav, CalSigmos, seed_everything
 
 device = torch.device('cuda') if torch.cuda.is_available() else torch.device('cpu')
 
@@ -27,24 +25,16 @@ class TrainerSEWG(TrainerBase):
     def __init__(self, args: Args):
         super(TrainerSEWG, self).__init__(args)
 
-    @staticmethod
-    def get_loss_fn():
-        loss_fn = nn.MSELoss()
-        loss_fn.to(device=device)
-        return loss_fn
+    def get_loss_fn(self):
+        loss1 = CriticLoss(self.normalize_output, ("Class" in self.args.model2_type), self.args.score_step).to(device)
+        loss2 = nn.MSELoss(reduction='mean').to(device)
+        return loss1, loss2
 
     def train_epoch(self, model, model_qn, x, y, loss_fn, loss_fn2, optimizerC, optimizerG, iteration):
         x = x.to(device)
         y = y.to(device)
         y_pred = model(x)
-        if self.args.se_input_type == 2:
-            mag_pred = torch.pow(y_pred[:, 0, :, :], 2) + torch.pow(y_pred[:, 1, :, :], 2)
-        else:
-            mag_pred = torch.pow(y_pred, 2)
-        if self.args.se_input_type == 2:
-            mag_true = torch.pow(y[:, 0, :, :], 2) + torch.pow(y[:, 1, :, :], 2)
-        else:
-            mag_true = torch.pow(y, 2)
+        mag_pred, mag_true = cal_mask_target(x, y, y_pred, self.mask_target, self.se_input_type)
         l1 = loss_fn(model_qn, mag_true)  # f_w(x(i))
         l2 = loss_fn(model_qn, mag_pred)  # f_w(g(z(i)))
 
@@ -61,10 +51,7 @@ class TrainerSEWG(TrainerBase):
         loss_G_ = 0
         if iteration % 5 == 0:
             y_pred = model(x)
-            if self.args.se_input_type == 2:
-                mag_pred = torch.pow(y_pred[:, 0, :, :], 2) + torch.pow(y_pred[:, 1, :, :], 2)
-            else:
-                mag_pred = torch.pow(y_pred, 2)
+            mag_pred, mag_true = cal_mask_target(x, y, y_pred, self.mask_target, self.se_input_type)
             loss_G = -loss_fn(model_qn, mag_pred)
             optimizerG.zero_grad()
             loss_G.backward()
@@ -80,13 +67,10 @@ class TrainerSEWG(TrainerBase):
         x = x.to(device)
         y = y.to(device)
         y_pred = model(x)
-        if self.args.se_input_type == 2:
-            mag_pred = torch.pow(y_pred[:, 0, :, :], 2) + torch.pow(y_pred[:, 1, :, :], 2)
-        else:
-            mag_pred = torch.pow(y_pred, 2)
-        l1 = loss_fn(model_qn, mag_pred)
-        l2 = loss_fn2(y_pred, y)
-        loss = l1 + l2
+        mag_pred, mag_true =  cal_mask_target(x, y, y_pred, self.mask_target, self.se_input_type)
+        l1 = loss_fn(model_qn, mag_true)  # f_w(x(i))
+        l2 = loss_fn(model_qn, mag_pred)
+        loss = l1 - l2
         return loss.item(), y_pred.cpu().detach()
 
     def freeze_parameters(self, model: nn.Module, names=None):
@@ -129,8 +113,7 @@ class TrainerSEWG(TrainerBase):
         model_qn = model_qn.to(device)
         # self.freeze_parameters(model=model_qn, names=None)
         # loss_fn = QNLoss(isClass=("Class" in self.args.model2_type), step=self.args.score_step).to(device)
-        loss_fn = CriticLoss(isClass=("Class" in self.args.model2_type), step=self.args.score_step).to(device)
-        loss_fn2 = nn.MSELoss(reduction='mean').to(device)
+        loss_fn, loss_fn2 = self.get_loss_fn()
 
         optimizerC = torch.optim.RMSprop(model_qn.parameters(), lr=self.args.lr)
         optimizerG = torch.optim.RMSprop(model_qn.parameters(), lr=self.args.lr)
@@ -166,7 +149,8 @@ class TrainerSEWG(TrainerBase):
                 model_qn.train()
                 loop_train = tqdm(enumerate(train_loader), leave=False)
                 for bi, (x, _, y, _) in loop_train:
-                    loss, lossG = self.train_epoch(model_se, model_qn, x, y, loss_fn, loss_fn2, optimizerC, optimizerG, bi)
+                    loss, lossG = self.train_epoch(model_se, model_qn, x, y, loss_fn, loss_fn2, optimizerC, optimizerG,
+                                                   bi)
                     train_loss += loss
                     train_loss += lossG
 
@@ -188,8 +172,8 @@ class TrainerSEWG(TrainerBase):
                         valid_loss += loss
                         batch = x.shape[0]
                         if idx < q_len:
-                            est_wav = spec2wav(est_x, xp, fft_size=self.args.fft_size, hop_size=self.args.hop_size,
-                                               win_size=self.args.fft_size, input_type=self.args.se_input_type)
+                            est_wav = spec2wav(x, xp, est_x, self.fft_size, self.hop_size, self.fft_size,
+                                               input_type=self.se_input_type, mask_target=self.mask_target)
                             results = calSigmos(est_wav.cpu().detach().numpy())
                             for i in range(7):
                                 mos_48k[mos_48k_name[i]].extend(results[i])
@@ -305,18 +289,15 @@ class TrainerSEWG(TrainerBase):
         self.freeze_parameters(model_qn)
         metric = Metric(mode="test")
         test_step = len(test_loader)
-        # calQuantity = CalQuality(fs=48000, batch=True)
         calSigmos = CalSigmos(fs=48000, batch=True)
 
-        # loss_fn = QNLoss(isClass=("Class" in self.args.model2_type), step=self.args.score_step).to(device)
-        loss_fn = CriticLoss(isClass=("Class" in self.args.model2_type), step=self.args.score_step).to(device)
-        loss_fn2 = nn.MSELoss().to(device)
+        loss_fn, loss_fn2 = self.get_loss_fn()
+
         test_loss = 0
         metric.mos_48k = {}
         for i in range(7):
             metric.mos_48k[metric.mos_48k_name[i]] = []
-        # predict_pesq = []
-        # predict_stoi = []
+
         idx = 0
         with torch.no_grad():
             for batch_idx, (x, xp, y, yp) in tqdm(enumerate(test_loader)):
@@ -324,11 +305,9 @@ class TrainerSEWG(TrainerBase):
                 test_loss += loss
                 batch = x.shape[0]
                 if idx < q_len:
-                    est_wav = spec2wav(est_x, xp, fft_size=self.args.fft_size, hop_size=self.args.hop_size,
-                                       win_size=self.args.fft_size, input_type=self.args.se_input_type)
-                    # p, s = calQuantity(est_wav.cpu().detach(), yp.cpu().detach())
-                    # predict_pesq[idx: idx + batch] = p
-                    # predict_stoi[idx: idx + batch] = s
+                    est_wav = spec2wav(x, xp, est_x, self.fft_size, self.hop_size, self.fft_size,
+                                       input_type=self.se_input_type, mask_target=self.mask_target)
+
                     results = calSigmos(est_wav.cpu().detach().numpy())
                     for i in range(7):
                         metric.mos_48k[metric.mos_48k_name[i]].extend(results[i])
@@ -344,18 +323,11 @@ class TrainerSEWG(TrainerBase):
             mean_mos_str += ":{:.4f}\t".format(np.mean(metric.mos_48k[name]))
         print(mean_mos_str)
 
-        # metric.pesq = predict_pesq
-        # metric.stoi = predict_stoi
-
         with open("log.txt", mode='a', encoding="utf-8") as f:
             f.write("test loss: {:.4f} \n".format(metric.test_loss))
 
-        # fig1 = plot_quantity(predict_pesq, "测试语音的pesq", ylabel="pesq", result_path=self.image_path)
-        # fig2 = plot_quantity(predict_stoi, "测试语音的stoi", ylabel="stoi", result_path=self.image_path)
         if self.args.save:
             self.writer.add_text("test metric", str(metric))
-            # self.writer.add_figure("pesq", fig1)
-            # self.writer.add_figure("stoi", fig2)
             for i in range(7):
                 name = metric.mos_48k_name[i]
                 fig = plot_quantity(metric.mos_48k[name], f"测试语音的{name}", ylabel=name, result_path=self.image_path)
@@ -395,8 +367,8 @@ class TrainerSEWG(TrainerBase):
 
 
 if __name__ == "__main__":
-    path_se = r"D:\work\speechEnhancement\speechQuality\QualityNetPOLQA\models\dpcrn_se20240518_224558\final.pt"
-    path_qn = r"D:\work\speechEnhancement\speechQuality\HASANetPOLQA\models\hasa20240516_134107\final.pt"
+    path_se = r"models\dpcrn_se20240518_224558\final.pt"
+    path_qn = r"models\hasa20240522_223914\final.pt"
     # arg = Args("dpcrn_qse", model_name="dpcrn_se20240518_224558", model2_type="cnn")
     arg = Args("dpcrn", task_type="_wgan", model2_type="hasa")
     arg.epochs = 15
@@ -423,8 +395,8 @@ if __name__ == "__main__":
     train_dataset, valid_dataset, test_dataset = load_dataset_se("wav_train_se.list", arg.spilt_rate,
                                                                  arg.fft_size, arg.hop_size, arg.se_input_type)
 
-    # model_se = load_pretrained_model(path_se)
-    model_se = load_se_model(arg)
+    model_se = load_pretrained_model(path_se)
+    # model_se = load_se_model(arg)
     model_qn = load_pretrained_model(path_qn)
 
     trainer = TrainerSEWG(arg)

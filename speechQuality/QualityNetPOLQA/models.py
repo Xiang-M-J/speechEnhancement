@@ -21,7 +21,7 @@ class TimeRestrictedAttention(nn.Module):
         )
 
     def forward(self, x, mask):
-        # mask = self.get_attn_mask(x.shape[1])
+        # mask_target = self.get_attn_mask(x.shape[1])
         # q = self.arrange(self.wq(x))
         # k = self.arrange(self.wk(x))
         # v = self.arrange(self.wv(x))
@@ -52,14 +52,14 @@ class ConvBlock(nn.Module):
         self.pool = nn.MaxPool1d(pool_size)
         self.rct = nn.ReLU()
         # self.relu = nn.ReLU()
-        # self.bn = nn.BatchNorm1d(out_channels)
+        self.bn = nn.BatchNorm1d(out_channels)
 
     def forward(self, x):
         residual_x = x
         x = self.conv1(x)
         x = self.conv2(x)
         x = self.conv3(x)
-        return self.rct((self.pool(residual_x + x)))
+        return self.rct(self.bn(self.pool(residual_x + x)))
 
 
 class Cnn2(nn.Module):
@@ -98,7 +98,7 @@ class Cnn2(nn.Module):
 class Cnn(nn.Module):
     """
     CNN model
-    input shape: (N, C, L)
+    inp shape: (N, C, L)
     """
 
     def __init__(self, filter_size, feature_dim, dropout):
@@ -142,18 +142,47 @@ class Cnn2d(nn.Module):
     def __init__(self):
         super(Cnn2d, self).__init__()
         self.prepare = Rearrange("N L (H C) -> N H C L", H=1)
-        self.conv1 = nn.Conv2d(1, 15, (5, 5))
-        self.conv2 = nn.Conv2d(15, 25, (7, 7))
-        self.conv3 = nn.Conv2d(25, 40, (9, 9))
-        self.conv4 = nn.Conv2d(40, 50, (11, 11))
-        self.pool = nn.AdaptiveAvgPool2d((1, 1))
-        self.linear = nn.Sequential(
+        self.conv1 = nn.Sequential(
+            nn.Conv2d(1, 16, (3, 3)),
+            nn.BatchNorm2d(16),
+            nn.LeakyReLU(0.1),
+            nn.Conv2d(16, 16, (3, 3)),
+            nn.BatchNorm2d(16),
+            nn.LeakyReLU(0.1),
+            nn.MaxPool2d((2, 2))
+        )
+        self.conv2 = nn.Sequential(
+            nn.Conv2d(16, 32, (3, 3)),
+            nn.BatchNorm2d(32),
+            nn.LeakyReLU(0.1),
+            nn.Conv2d(32, 32, (3, 3)),
+            nn.BatchNorm2d(32),
+            nn.LeakyReLU(0.1),
+            nn.MaxPool2d((2, 2))
+        )
+        self.conv3 = nn.Sequential(
+            nn.Conv2d(32, 64, (3,3)),
+            nn.BatchNorm2d(64),
+            nn.LeakyReLU(0.1),
+            nn.MaxPool2d((2, 2)),
+            nn.Conv2d(64, 64, (3, 3)),
+            nn.BatchNorm2d(64),
+            nn.LeakyReLU(0.1),
+        )
+        self.avg = nn.Sequential(
+            nn.Conv2d(64, 128, (3,3)),
+            nn.BatchNorm2d(128),
+            nn.LeakyReLU(0.1),
+            nn.AvgPool2d((2,2)),
+            Rearrange("N H C L -> N (H C) L"),
+            nn.AdaptiveAvgPool1d(1),
             nn.Flatten(),
-            nn.Linear(50, 50),
+        )
+        self.avg2 = nn.Sequential(
+            nn.Linear(128 * 12, 32),
+            nn.BatchNorm1d(32),
             nn.LeakyReLU(),
-            nn.Linear(50, 10),
-            nn.LeakyReLU(),
-            nn.Linear(10, 1)
+            nn.Linear(32, 1)
         )
 
     def forward(self, x):
@@ -161,15 +190,14 @@ class Cnn2d(nn.Module):
         x = self.conv1(x)
         x = self.conv2(x)
         x = self.conv3(x)
-        x = self.conv4(x)
-        x = self.pool(x)
-        x = self.linear(x)
+        x = self.avg(x)
+        x = self.avg2(x)
         return x
 
 
 class SEBlock(nn.Module):
     """
-    input: N C L
+    inp: N C L
     """
 
     def __init__(self, filter_size, feature_dim, pool, dilation):
@@ -288,14 +316,76 @@ class CANClass(nn.Module):
         x = self.middle1(x)
         x = self.conv3(x)
         avg = self.avg(x)
-        cls = self.classifier(x)
-        return avg, cls
+        c = self.classifier(x)
+        return avg, c
+
+class CAN2dClass(nn.Module):
+    def __init__(self, n_class):
+        super(CAN2dClass, self).__init__()
+        self.prepare = Rearrange("N L (H C) -> N H C L", H=1)
+        self.conv1 = nn.Sequential(
+            nn.Conv2d(1, 16, (3, 3)),
+            nn.BatchNorm2d(16),
+            nn.LeakyReLU(0.1),
+            nn.Conv2d(16, 16, (3, 3)),
+            nn.BatchNorm2d(16),
+            nn.LeakyReLU(0.1),
+            nn.MaxPool2d((2, 2))
+        )
+        self.conv2 = nn.Sequential(
+            nn.Conv2d(16, 32, (3, 3)),
+            nn.BatchNorm2d(32),
+            nn.LeakyReLU(0.1),
+            nn.Conv2d(32, 32, (3, 3)),
+            nn.BatchNorm2d(32),
+            nn.LeakyReLU(0.1),
+            nn.MaxPool2d((2, 2))
+        )
+        self.conv3 = nn.Sequential(
+            nn.Conv2d(32, 64, (3,3)),
+            nn.BatchNorm2d(64),
+            nn.LeakyReLU(0.1),
+            nn.MaxPool2d((2, 2)),
+            nn.Conv2d(64, 64, (3, 3)),
+            nn.BatchNorm2d(64),
+            nn.LeakyReLU(0.1),
+        )
+        self.avg = nn.Sequential(
+            nn.Conv2d(64, 128, (3,3)),
+            nn.BatchNorm2d(128),
+            nn.LeakyReLU(0.1),
+            nn.AvgPool2d((2,2)),
+            Rearrange("N H C L -> N (H C) L"),
+            nn.AdaptiveAvgPool1d(1),
+            nn.Flatten(),
+            nn.Linear(128 * 12, 32),
+            nn.BatchNorm1d(32),
+            nn.LeakyReLU(),
+            nn.Linear(32, 1)
+        )
+        self.cls = nn.Sequential(
+            Rearrange("N H C L -> N (H C) L"),
+            nn.AdaptiveAvgPool1d(1),
+            nn.Flatten(),
+            nn.Linear(64 * 27, 64),
+            nn.BatchNorm1d(64),
+            nn.LeakyReLU(),
+            nn.Linear(64, n_class)
+        )
+    def forward(self, x):
+        x = self.prepare(x)
+        x = self.conv1(x)
+        x = self.conv2(x)
+        x = self.conv3(x)
+        avg = self.avg(x)
+        c = self.cls(x)
+        return avg, c
 
 
 class CnnClass(nn.Module):
     """
     CNN model
-    input shape: (N, C, L)
+    inp shape: (N, C, L)
     """
 
     def __init__(self, dropout=0.3, step=0.2):
@@ -305,19 +395,16 @@ class CnnClass(nn.Module):
         self.prepare = nn.Sequential(
             Rearrange("N L C -> N C L"),
             nn.Conv1d(in_channels=257, out_channels=filter_size, kernel_size=5),
-            # nn.BatchNorm1d(num_features=256),
-            nn.ELU(),
+            nn.BatchNorm1d(num_features=filter_size),
+            nn.LeakyReLU(),
         )
         self.conv1 = ConvBlock(filter_size, filter_size, pool_size=4, feature_dim=feature_dim, dilation=64)
         self.conv2 = ConvBlock(filter_size, filter_size, pool_size=4, feature_dim=feature_dim, dilation=32)
         self.conv3 = ConvBlock(filter_size, filter_size, pool_size=2, feature_dim=feature_dim, dilation=16)
         self.conv4 = ConvBlock(filter_size, filter_size, pool_size=2, feature_dim=feature_dim, dilation=8)
         self.avg = nn.Sequential(
-            # nn.BatchNorm1d(filter_size),
             nn.AdaptiveAvgPool1d(1),
-            Rearrange("N C L -> N (C L)"),
-            # nn.Linear(in_features=filter_size, out_features=128),
-            # nn.Dropout(dropout),
+            nn.Flatten(),
             nn.Linear(in_features=filter_size, out_features=int(400 // int(step * 100))),
         )
 
@@ -336,7 +423,7 @@ class CnnClass(nn.Module):
 class QualityNet(nn.Module):
     """
     QualityNet model
-    input shape: (N, L, C)
+    inp shape: (N, L, C)
     """
 
     def __init__(self, dropout=0.3) -> None:
@@ -360,7 +447,7 @@ class QualityNet(nn.Module):
 class QualityNetAttn(nn.Module):
     """
     QualityNet with attention model
-    input shape: (N, L, C)
+    inp shape: (N, L, C)
     """
 
     def __init__(self, dropout=0.3) -> None:
@@ -382,10 +469,45 @@ class QualityNetAttn(nn.Module):
         lstm_out, _ = self.lstm(x)
         lstm_out, attn = self.attn(lstm_out, self.mask)
         l1 = self.dropout(self.elu(self.linear1(lstm_out)))
-        # l1, attn = self.attn(l1, self.mask)
+        # l1, attn = self.attn(l1, self.mask_target)
         Frame_score = self.linear2(l1).squeeze(-1)
         Average_score = self.pool(Frame_score)
         return Frame_score, Average_score
+
+class LstmCANClass(nn.Module):
+    def __init__(self, dropout, num_class) -> None:
+        super(LstmCANClass, self).__init__()
+        self.lstm = nn.LSTM(257, 100, num_layers=2, bidirectional=True, dropout=dropout, batch_first=True)
+        self.linear1 = nn.Sequential(
+            nn.Linear(200, 100),  # 2 * 100
+            nn.ELU(),
+            nn.Dropout(dropout)
+        )
+
+        self.avg = nn.Sequential(
+            Rearrange("N L C -> N C L"),
+            nn.AdaptiveAvgPool1d(128),
+            nn.Linear(128, 1),
+            nn.Flatten(),
+            nn.BatchNorm1d(100),
+            nn.Linear(100, 1),
+        )
+        self.cls = nn.Sequential(
+            Rearrange("N L C -> N C L"),
+            nn.AdaptiveAvgPool1d(128),
+            nn.Linear(128, 1),
+            nn.Flatten(),
+            nn.BatchNorm1d(100),
+            nn.Linear(100, num_class),
+        )
+    
+    def forward(self, x):
+        x, _ = self.lstm(x)
+        x = self.linear1(x)
+        avg = self.avg(x)
+        c = self.cls(x)
+        return avg, c
+
 
 
 class QualityNetClassifier(nn.Module):
@@ -452,18 +574,11 @@ class HASANet(nn.Module):
         # self.act = nn.LeakyReLU()
         self.hasqiaverage_score = nn.AdaptiveAvgPool1d(1)
 
-    @staticmethod
-    def get_attn_mask(seq_len, offset):
-        mask = torch.ones([seq_len, seq_len], dtype=torch.bool)
-        mask = torch.tril(mask, offset) * torch.triu(mask, -offset)
-        return mask
-
     def forward(self, x):  # hl:(B,6)
 
         out, _ = self.blstm(x)  # (B,T, 2*hidden)
         out = self.dropout(self.act_fn(self.linear1(out))).transpose(0, 1)  #(T_length, B,  128)
-        mask = self.get_attn_mask(x.shape[1], offset=128).to(x.device)
-        hasqi, _ = self.hasqiAtt_layer(out, out, out, attn_mask=mask)
+        hasqi, _ = self.hasqiAtt_layer(out, out, out)
         hasqi = hasqi.transpose(0, 1)  # (B, T_length, 128)
         hasqi = self.ln(hasqi)
         hasqi = self.hasqiframe_score(hasqi)  # (B, T_length, 1)
@@ -476,7 +591,13 @@ class HASANet(nn.Module):
 
 if __name__ == '__main__':
     # model = TimeRestrictedAttention(257, 128)
-    model = Cnn(128, 64, 0.3)
+    model = LstmCANClass(0.1, 20)
     x = torch.randn((4, 1024, 257))
-    y = model(x)
-    print(y[0].shape, y[1].shape)
+    import time
+
+    t1 = time.time()
+    for i in range(100):
+        y = model(x)
+    t2 = time.time()
+    print(t2 - t1)
+    print(y.shape)

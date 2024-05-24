@@ -10,7 +10,7 @@ from torch.utils.data import dataloader
 from tqdm import tqdm
 from trainer_base import TrainerBase
 
-from losses import EDMLoss, AvgCrossEntropyLoss
+from losses import EDMLoss, AvgCrossEntropyLoss, NormMseLoss
 from trainer_utils import Args, EarlyStopping, Metric, plot_metric, load_qn_model, load_dataset_qn, confuseMatrix, \
     plot_matrix, load_pretrained_model
 from utils import accurate_num_cal, oneHotToFloat, seed_everything
@@ -29,7 +29,10 @@ class TrainerC(TrainerBase):
         super().__init__(args)
 
     def get_loss_fn(self):
-        loss1 = nn.MSELoss()
+        if self.args.normalize_output:
+            loss1 = NormMseLoss()
+        else:
+            loss1 = nn.MSELoss()
         # loss2 = EDMLoss(self.args.score_step, self.args.smooth)
         loss2 = AvgCrossEntropyLoss(step=self.args.score_step)
 
@@ -43,13 +46,13 @@ class TrainerC(TrainerBase):
 
         y1 = y[0]
         y2 = y[1]
-        avg, cls = model(x)
+        avg, c = model(x)
         l1 = loss1(avg.squeeze(-1), y1)
-        l2 = loss2(cls, y1)
-        loss = l1 + l2
-        # loss = loss1(avgS, y1)
+        l2 = loss2(c, y1)
+        loss = 10 * l1 + l2
+        # loss = l2
         loss.requires_grad_(True)
-        accurate_num = accurate_num_cal(cls, y1, self.args.score_step)
+        accurate_num = accurate_num_cal(c, y1, self.args.score_step)
         optimizer.zero_grad()
         loss.backward()
         optimizer.step()
@@ -63,14 +66,18 @@ class TrainerC(TrainerBase):
         loss2 = loss_fns[1]
         y1 = y[0]
         y2 = y[1]
-        avg, cls = model(x)
-        accurate_num = accurate_num_cal(cls, y1, self.args.score_step)
+        avg, c = model(x)
+        accurate_num = accurate_num_cal(c, y1, self.args.score_step)
         l1 = loss1(avg.squeeze(-1), y1)
-        l2 = loss2(cls, y1)
-        loss = l1 + l2
-        predict_cls = oneHotToFloat(cls.cpu().detach().numpy(), self.args.score_step)
-        predict_avg = avg.squeeze(-1).cpu().detach().numpy()
-        return loss.item(), (predict_cls + predict_cls)/2, y1.cpu().detach().numpy(), accurate_num
+        l2 = loss2(c, y1)
+        loss = 10 * l1 + l2
+        predict_cls = oneHotToFloat(c.cpu().detach().numpy(), self.args.score_step)
+        predict_avg = avg.squeeze(-1).sigmoid().cpu().detach().numpy()
+        if self.args.normalize_output:
+            
+            predict_avg = predict_avg * 4.0 + 1.0
+        # return loss.item(), (predict_avg + predict_cls)/2, y1.cpu().detach().numpy(), accurate_num
+        return loss.item(), predict_cls, y1.cpu().detach().numpy(), accurate_num
 
     def train(self, model: nn.Module, train_dataset, valid_dataset):
         print("begin train")
@@ -96,11 +103,8 @@ class TrainerC(TrainerBase):
         valid_step = len(valid_loader)
 
         # 设置优化器、早停止和scheduler
-        if self.args.load_weight:
-            # 修改
-            optimizer = self.get_optimizer(model.parameters(), self.lr)
-        else:
-            optimizer = self.get_optimizer(model.parameters(), self.lr)
+
+        optimizer = self.get_optimizer(model.parameters(), self.lr)
 
         early_stop = EarlyStopping(patience=self.args.patience, delta_loss=self.args.delta_loss)
 
@@ -115,14 +119,9 @@ class TrainerC(TrainerBase):
             self.writer.add_text("模型名", self.args.model_name)
             self.writer.add_text('超参数', str(self.args))
             try:
-                dummy_input = torch.rand(self.args.batch_size, 128, self.args.fft_size // 2 + 1).to(device)
-                if self.args.model_type == "lstmA":
-                    # mask = torch.randn([512, 512]).to(device)
-                    # self.writer.add_graph(model, dummy_input)
-                    pass
-                else:
-                    self.writer.add_graph(model, dummy_input)
-            except RuntimeError as e:
+                dummy_input = torch.rand(self.args.batch_size, 256, self.args.fft_size // 2 + 1).to(device)
+                self.writer.add_graph(model, dummy_input)
+            except Exception as e:
                 print(e)
 
         plt.ion()
@@ -302,7 +301,6 @@ class TrainerC(TrainerBase):
             self.writer.add_figure("confusion_matrix", fig)
             plt.clf()
             M = np.max([np.max(POLQA_Predict), 5])
-            plt.clf()
             fig = plt.figure(1)
             plt.scatter(POLQA_True, POLQA_Predict, s=3)
             plt.xlim([0, M])
@@ -314,11 +312,6 @@ class TrainerC(TrainerBase):
             self.writer.add_text("test metric", str(metric))
             self.writer.add_figure("predict score", fig)
             np.save(self.data_path + "test_metric.npy", metric.items())
-        else:
-            plt.scatter(POLQA_True, POLQA_Predict, s=6)
-            plt.show()
-            plt.pause(2)
-            plt.ioff()
 
     def test(self, test_dataset, model: nn.Module = None, model_path: str = None):
 
@@ -350,27 +343,27 @@ class TrainerC(TrainerBase):
 
 
 if __name__ == "__main__":
-    arg = Args("canClass")
-    # arg = Args("canClass", model_name="canClass20240521_203520")
+    arg = Args("can2dClass")
+    # arg = Args("can2dClass", model_name="can2dClass20240524_084734")
     arg.epochs = 35
-    arg.batch_size = 128
-    arg.save = False
+    arg.batch_size = 16
+    arg.save = True
     arg.lr = 5e-4
-    arg.step_size = 10
+    arg.step_size = 5
     arg.delta_loss = 1e-3
     arg.cnn_filter = 128
     arg.cnn_feature = 64
 
     # 用于 qualityNet
-    # arg.normalize_output = True
+    arg.normalize_output = True
 
     # 训练Hubert
-    # arg.optimizer_type = 1
+    arg.optimizer_type = 1
     # arg.enable_frame = False
 
     # 训练 CNN / tcn
-    arg.optimizer_type = 1
-    arg.enableFrame = False
+    # arg.optimizer_type = 1
+    # arg.enableFrame = False
 
     # 训练分类模型
     # arg.score_step = 0.2
@@ -384,11 +377,11 @@ if __name__ == "__main__":
     seed_everything(arg.random_seed)
 
     # 加载用于预测polqa分数的数据集 x: (B, L, C), y1: (B,), y2: (B, L)
-    train_dataset, valid_dataset, test_dataset = load_dataset_qn("wav_polqa_mini.list", arg.spilt_rate,
+    train_dataset, valid_dataset, test_dataset = load_dataset_qn("wav_train_qn.list", arg.spilt_rate,
                                                                  arg.fft_size, arg.hop_size, )
 
     model = load_qn_model(arg)
-    # model = load_pretrained_model(r"models\canClass20240521_203520\final.pt")
+    # model = load_pretrained_model(r"models\can2dClass20240524_084734\final.pt")
 
     # 以Class结尾时，返回TrainerC
     trainer = TrainerC(arg)

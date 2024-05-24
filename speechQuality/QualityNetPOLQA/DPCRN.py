@@ -54,10 +54,10 @@ class DPRNN(nn.Module):
     def forward(self, x):
         out = x  #(B,C,T,F)
         ## intra
-        # input shape (B,C,T,F) --> (B,T,F,C)
+        # inp shape (B,C,T,F) --> (B,T,F,C)
         x = x.permute(0, 2, 3, 1).contiguous()
         batch_size, chan_len, seq_len, freq_len = out.shape
-        # input shape (B,C,T,F) --> (B*T,F,C)
+        # inp shape (B,C,T,F) --> (B*T,F,C)
         out = out.permute(0, 2, 3, 1).contiguous()
         out = out.view(-1, freq_len, chan_len)
         # (bs*T,F,C)
@@ -69,7 +69,7 @@ class DPRNN(nn.Module):
         intra_out = out + x  #(B,T,F,C)
 
         ##inter
-        # input shape (B,T,F, C) --> (B * F, T, C)
+        # inp shape (B,T,F, C) --> (B * F, T, C)
         out = intra_out.permute(0, 2, 1, 3).contiguous()
         out = out.view(-1, seq_len, chan_len)
         # (bs*F,T,C)

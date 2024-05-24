@@ -198,30 +198,46 @@ def preprocess(wav_path):
     return wav.squeeze(0), fs
 
 
-def spec2wav(feat, phase, fft_size, hop_size, win_size, input_type=2, mask=None):
+def spec2wav(feat, phase, mask, fft_size, hop_size, win_size, input_type=2, mask_target=None):
     """
-    feat:
-    input type == 1:   [N L C]
-    input type == 2:   [N 2 L C], phase = None
+    Args:
+
+        feat: 原始的带噪声的频谱, input_type == 1: [N L C],  input_type == 2:  [N 2 L C]
+        phase: 相位谱，当input_type==2时，仅需传入None即可
+        mask: 模型预测的值，**当 mask_target 为 None，mask 就是增强后的频谱**
     """
     if input_type == 1:
-        feat = torch.pow(feat, 2)
-        if mask is not None:
-            feat = feat * mask
-        comp = torch.complex(feat * torch.cos(phase), feat * torch.sin(phase)).permute([0, 2, 1])
+        mag = back_magnitude_spectrum(feat, mask, mask_target, input_type)
+        comp = torch.complex(mag * torch.cos(phase), mag * torch.sin(phase)).permute([0, 2, 1])
     elif input_type == 2:
         if len(feat.shape) != 4:
             raise ValueError("feat's dimension is not 4")
-        feat_mag = torch.norm(feat, dim=1)
-        feat_phase = torch.atan2(feat[:, 1, :, :], feat[:, 0, :, :])
-        feat_mag = torch.pow(feat_mag, 2)
-
-        comp = torch.complex(feat_mag * torch.cos(feat_phase), feat_mag * torch.sin(feat_phase)).permute([0, 2, 1])
+        mag = back_magnitude_spectrum(feat, mask, mask_target, input_type)
+        pha = torch.atan2(feat[:, 1, :, :], feat[:, 0, :, :])
+        comp = torch.complex(mag * torch.cos(pha), mag * torch.sin(pha)).permute([0, 2, 1])
     else:
         raise ValueError("type error")
     wav = torch.istft(comp, n_fft=fft_size, hop_length=hop_size, win_length=win_size,
                       window=torch.hann_window(win_size), return_complex=False)
     return wav
+
+
+def back_magnitude_spectrum(x, mask, mask_target, input_type):
+    if input_type == 1:
+        if mask_target is None:
+            return torch.pow(mask, 2)
+        elif mask_target == "IAM":
+            return torch.pow(x, 2) * mask
+        elif mask_target == "IRM":
+            return torch.pow(x, 2) * mask
+        else:
+            raise NotImplementedError
+
+    elif input_type == 2:
+        if mask_target is not None:
+            raise NotImplementedError
+        mag = torch.pow(torch.norm(mask, dim=1), 2)
+        return mag
 
 
 def predict_pesq_batch(deg_feat, deg_phase, ref_feat, ref_phase, fft_size, hop_size, win_size):
@@ -331,8 +347,12 @@ def ListRead(path):
     return file_list
 
 
-def norm_label(y):
+def normalize(y):
     return (y - 1.0) / 4.0
+
+
+def denormalize(y):
+    return y * 4.0 + 1.0
 
 
 def seed_everything(seed):
@@ -372,12 +392,68 @@ def get_logging(filename):
     return logger
 
 
+def apply_mask_target(x, y, y_pred, loss_fn, mask_target, input_type):
+    """
+    根据 mask_target 计算损失
+    """
+    if mask_target is None:
+        return loss_fn(y_pred, y)
+    elif mask_target == "IAM":
+        if input_type == 1:
+            return loss_fn(y_pred * torch.pow(x, 2), torch.pow(y, 2))
+        elif input_type == 2:
+            raise NotImplementedError
+    elif mask_target == "IRM":
+        if input_type == 1:
+            x_mag = get_mag(x, 1)
+            y_mag = get_mag(y, 1)
+            n_mag = x_mag - y_mag
+            return loss_fn(y_pred * torch.sqrt(torch.add(torch.pow(y_mag, 2), torch.pow(n_mag, 2))), y_mag)
+        elif input_type == 2:
+            raise NotImplementedError
+    else:
+        raise NotImplementedError
+
+
+def cal_mask_target(x, y, y_pred, mask_target, input_type):
+    """
+    根据 mask_target 计算幅度谱，用于QualityNet的输入
+    返回：增强后的幅度谱，干净的幅度谱
+    """
+    if mask_target is None:
+        return y_pred, y
+    elif mask_target == "IAM":
+        if input_type == 1:
+            return y_pred * torch.pow(x, 2), torch.pow(y, 2)
+        elif input_type == 2:
+            raise NotImplementedError
+    elif mask_target == "IRM":
+        if input_type == 1:
+            x_mag = get_mag(x, 1)
+            y_mag = get_mag(y, 1)
+            n_mag = x_mag - y_mag
+            return y_pred * torch.sqrt(torch.add(torch.pow(y_mag, 2), torch.pow(n_mag, 2))), y_mag
+        elif input_type == 2:
+            raise NotImplementedError
+    else:
+        raise NotImplementedError
+
+
+def get_mag(x, input_type):
+    if input_type == 1:
+        return torch.pow(x, 2)
+    elif input_type == 2:
+        return torch.pow(x[:, 0, :, :], 2) + torch.pow(x[:, 1, :, :], 2)
+    else:
+        raise NotImplementedError
+
+
 if __name__ == '__main__':
     pass
     #
     # predict = torch.abs(torch.randn([64, 20])) * 2 + 1
-    # target = torch.randn([64]) * 2 + 1
-    # print(accurate_num_cal(predict, target, 0.2))
+    # tgt = torch.randn([64]) * 2 + 1
+    # print(accurate_num_cal(predict, tgt, 0.2))
 
     # x = np.random.randn(4, 20)
     # print(oneHotToFloat(x, 0.2))

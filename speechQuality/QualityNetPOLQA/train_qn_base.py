@@ -7,12 +7,12 @@ import scipy
 import torch
 import torch.nn as nn
 from torch.utils.data import dataloader
-from torch.utils.tensorboard import SummaryWriter
 from tqdm import tqdm
 
-from trainer_utils import Args, EarlyStopping, Metric, plot_metric, load_qn_model, load_dataset_qn
-from losses import FrameMse, FrameMse2, FrameMseNo
-from utils import norm_label, seed_everything, get_logging
+from trainer_utils import (Args, EarlyStopping, Metric, plot_metric, load_qn_model, load_dataset_qn,
+                           load_pretrained_model)
+from losses import FrameMse, FrameMse2, FrameMseNorm
+from utils import normalize, seed_everything, denormalize
 from trainer_base import TrainerBase
 device = torch.device('cuda') if torch.cuda.is_available() else torch.device('cpu')
 
@@ -31,29 +31,29 @@ class Trainer(TrainerBase):
             loss2 = FrameMse2(self.args.enable_frame)
         else:
             if self.args.normalize_output:
-                loss2 = FrameMseNo(self.args.enable_frame)
+                loss2 = FrameMseNorm(self.args.enable_frame)
             else:
                 loss2 = FrameMse(self.args.enable_frame)
         loss1.to(device=device)
         loss2.to(device=device)
         return loss1, loss2
 
-    def train_epoch(self, model, norm, x, y, loss1, loss2, optimizer):
+    def train_epoch(self, model, x, y, loss1, loss2, optimizer):
         y1 = y[0]
         y2 = y[1]
         if self.args.normalize_output:
-            y1 = norm_label(y1)
-            y2 = norm_label(y2)
+            y1 = normalize(y1)
+            y2 = normalize(y2)
         if "cnn" in self.args.model_type or "hubert" in self.args.model_type:
             avgS = model(x)
             if self.args.normalize_output:
-                avgS = norm(avgS)
+                avgS = avgS.sigmoid()
             loss = loss1(avgS.squeeze(-1), y1)
         else:
             frameS, avgS = model(x)
             if self.args.normalize_output:
-                avgS = norm(avgS)
-                frameS = norm(frameS)
+                avgS = avgS.sigmoid()
+                frameS = frameS.sigmoid()
             l1 = loss1(avgS.squeeze(-1), y1)
             l2 = loss2(frameS, y2)
             loss = l1 + l2
@@ -63,25 +63,25 @@ class Trainer(TrainerBase):
         optimizer.step()
         return loss.item()
 
-    def predict(self, model, norm, x, y, loss1, loss2):
+    def predict(self, model, x, y, loss1, loss2):
         """
         Return loss, predict score, true score
         """
         y1 = y[0]
         y2 = y[1]
         if self.args.normalize_output:
-            y1 = norm_label(y1)
-            y2 = norm_label(y2)
+            y1 = normalize(y1)
+            y2 = normalize(y2)
         if "cnn" in self.args.model_type or "hubert" in self.args.model_type:
             avgS = model(x)
             if self.args.normalize_output:
-                avgS = norm(avgS)
+                avgS = avgS.sigmoid()
             loss = loss1(avgS.squeeze(-1), y1)
         else:
             frameS, avgS = model(x)
             if self.args.normalize_output:
-                avgS = norm(avgS)
-                frameS = norm(frameS)
+                avgS = avgS.sigmoid()
+                frameS = frameS.sigmoid()
             l1 = loss1(avgS.squeeze(-1), y1)
             l2 = loss2(frameS, y2)
             loss = l1 + l2
@@ -109,11 +109,8 @@ class Trainer(TrainerBase):
         valid_step = len(valid_loader)
 
         # 设置优化器、早停止和scheduler
-        if self.args.load_weight:
-            # 修改
-            optimizer = self.get_optimizer(model.parameters(), self.lr)
-        else:
-            optimizer = self.get_optimizer(model.parameters(), self.lr)
+
+        optimizer = self.get_optimizer(model.parameters(), self.lr)
 
         early_stop = EarlyStopping(patience=self.args.patience, delta_loss=self.args.delta_loss)
 
@@ -129,8 +126,6 @@ class Trainer(TrainerBase):
                 else:
                     dummy_input = torch.rand(4, 128, self.args.fft_size // 2 + 1)
                 if self.args.model_type == "lstmA" or "hubert" in self.args.model_type:
-                    # mask = torch.randn([512, 512]).to(device)
-                    # self.writer.add_graph(model, dummy_input)
                     pass
                 else:
                     self.writer.add_graph(model, dummy_input)
@@ -140,8 +135,6 @@ class Trainer(TrainerBase):
         # 设置损失函数和模型
         loss1, loss2 = self.get_loss_fn()
         model = model.to(device)
-
-        norm = nn.Sigmoid().to(device)
 
         plt.ion()
         start_time = time.time()
@@ -154,7 +147,7 @@ class Trainer(TrainerBase):
                 model.train()
                 loop_train = tqdm(enumerate(train_loader), leave=False)
                 for batch_idx, (x, y) in loop_train:
-                    loss = self.train_epoch(model, norm, x, y, loss1, loss2, optimizer)
+                    loss = self.train_epoch(model, x, y, loss1, loss2, optimizer)
                     train_loss += loss
 
                     loop_train.set_description_str(f'Training [{epoch + 1}/{self.epochs}]')
@@ -164,7 +157,7 @@ class Trainer(TrainerBase):
                 with torch.no_grad():
                     loop_valid = tqdm(enumerate(valid_loader), leave=False)
                     for batch_idx, (x, y) in loop_valid:
-                        loss, _, _ = self.predict(model, norm, x, y, loss1, loss2)
+                        loss, _, _ = self.predict(model, x, y, loss1, loss2)
                         valid_loss += loss
                         loop_valid.set_description_str(f'Validating [{epoch + 1}/{self.epochs}]')
                         loop_valid.set_postfix_str("step: {}/{} loss: {:.4f}".format(batch_idx, valid_step, loss))
@@ -285,11 +278,10 @@ class Trainer(TrainerBase):
         idx = 0
         loss1, loss2 = self.get_loss_fn()
         test_loss = 0
-        norm = nn.Sigmoid().to(device)
         with torch.no_grad():
             for batch_idx, (x, y) in tqdm(enumerate(test_loader)):
                 batch = x.shape[0]
-                loss, est_polqa, true_polqa = self.predict(model, norm, x, y, loss1, loss2)
+                loss, est_polqa, true_polqa = self.predict(model, x, y, loss1, loss2)
                 test_loss += loss
                 POLQA_Predict[idx: idx + batch] = est_polqa
                 POLQA_True[idx: idx + batch] = true_polqa
@@ -308,6 +300,9 @@ class Trainer(TrainerBase):
                           .format(metric.test_loss, metric.mse, float(metric.lcc[0][1]), metric.srcc[0]))
 
         if self.args.save:
+            if self.args.normalize_output:
+                POLQA_Predict = denormalize(POLQA_Predict)
+                POLQA_True = denormalize(POLQA_True)
             M = np.max([np.max(POLQA_Predict), 5])
             plt.clf()
             fig = plt.figure(1)
@@ -357,13 +352,14 @@ class Trainer(TrainerBase):
 
 
 if __name__ == "__main__":
+    # arg = Args("hasa", model_name="hasa20240522_173240")
     arg = Args("hasa")
     arg.epochs = 35
     arg.batch_size = 12
     arg.save = True
     arg.lr = 5e-4
-    arg.step_size = 10
-    arg.delta_loss = 1e-3
+    arg.step_size = 5
+    arg.delta_loss = 2e-4
 
     # 用于 qualityNet
     arg.normalize_output = True
@@ -387,6 +383,7 @@ if __name__ == "__main__":
                                                                  arg.fft_size, arg.hop_size, return_wav=False)
 
     model = load_qn_model(arg)
+    # model = load_pretrained_model(r"models/hasa20240522_173240/final.pt")
 
     trainer = Trainer(arg)
     model = trainer.train(model, train_dataset=train_dataset, valid_dataset=valid_dataset)

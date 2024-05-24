@@ -6,7 +6,7 @@ import torch
 from sklearn.metrics import classification_report, confusion_matrix
 
 from models import QualityNet, Cnn, QualityNetAttn, QualityNetClassifier, CnnClass, Cnn2d, CnnAttn, HASANet, Cnn2, \
-    CANClass
+    CANClass, CAN2dClass, LstmCANClass
 from lstm import lstm_net
 from DPCRN import dpcrn
 from hubert import Hubert
@@ -103,7 +103,10 @@ class Args:
                  focal_gamma=2,
                  normalize_output=False,
                  input_type=2,
-                 mask_target=None
+                 mask_target=None,
+                 iteration=10000,
+                 iter_step = 100,
+                 save_model_step = 10
                  ):
         """
         Args:
@@ -126,7 +129,7 @@ class Args:
             focal_gamma: focal loss 中的gamma
             model2_type: 第二个模型（qualityNet）的类型
             normalize_output: 归一化语音质量模型的输出
-            input_type: 语音增强模型的输入类型（1：只输入幅度谱，2：输入幅度谱和相位谱的堆叠）
+            input_type: 语音增强模型的输入类型（1：lstm，只输入压缩过的幅度谱，2：dpcrn）
             task_type: 任务类型
             mask_target: 是否训练mask(IAM)
         """
@@ -134,6 +137,8 @@ class Args:
         # 基础参数
         if task_type == "_se":
             self.model_type = model_type + task_type + ("" if mask_target is None else ("_"+mask_target))
+        else:
+            self.model_type = model_type + task_type
         if model_name is None:
             self.now_time = time.strftime('%Y%m%d_%H%M%S', time.localtime())
             model_name = self.model_type + ("" if model2_type is None else model2_type)
@@ -151,6 +156,11 @@ class Args:
         self.model2_type = model2_type
 
         self.normalize_output = normalize_output
+
+        # 语音质量模型与语音增强模型
+        self.iteration = iteration
+        self.iter_step = iter_step
+        self.save_model_step = save_model_step
 
         # 语音增强模型相关
         self.se_input_type = input_type
@@ -225,6 +235,8 @@ class Metric:
             self.train_loss = []
             self.valid_loss = []
             self.best_valid_loss = 100.
+            self.sig = None
+            self.ovrl = None
             if with_acc:
                 self.train_acc = []
                 self.valid_acc = []
@@ -254,7 +266,7 @@ class Metric:
                 self.valid_acc = []
                 self.best_valid_acc = 0.
 
-    def items(self) -> np.array(dict):
+    def items(self) -> dict:
         """
         返回各种指标的字典格式数据
         Returns: dict
@@ -266,7 +278,7 @@ class Metric:
         for key in key_list:
             if data[key] is None:
                 data.pop(key)
-        return np.array(data)
+        return data
 
     def __str__(self) -> str:
         info = ""
@@ -363,6 +375,25 @@ def plot_spectrogram(wav, fs, fft_size, hop_size, title: str = "语谱图", file
     plt.savefig(os.path.join(result_path, f"{filename}.png"), dpi=dpi)
     return fig
 
+class LoaderIterator:
+    """
+    将 loader 转为迭代器
+    """
+    def __init__(self, loader) -> None:
+        self.idx = 0
+        self.loader = loader
+        self.max_idx = len(loader)
+        self.iterator = iter(loader)
+    
+    def __call__(self):
+        if self.idx == self.max_idx:
+            self.iterator = iter(self.loader)
+            self.idx = 0
+        ret_value = next(self.iterator)
+        self.idx += 1
+        return ret_value
+
+    
 
 def load_qn_model(args: Args):
     if args.model_type == "lstm":
@@ -381,8 +412,12 @@ def load_qn_model(args: Args):
         model = CnnAttn(args.cnn_filter, args.cnn_feature, args.dropout)
     elif args.model_type == "canClass":
         model = CANClass(args.cnn_filter, args.cnn_feature, args.score_step)
+    elif args.model_type == "can2dClass":
+        model = CAN2dClass(args.score_class_num)
     elif args.model_type == "lstmClass":
         model = QualityNetClassifier(args.dropout, args.score_step)
+    elif args.model_type == "lstmcanClass":
+        model = LstmCANClass(args.dropout, args.score_class_num)
     elif args.model_type == "cnnClass":
         model = CnnClass(args.dropout, args.score_step)
     elif args.model_type == "hubert":

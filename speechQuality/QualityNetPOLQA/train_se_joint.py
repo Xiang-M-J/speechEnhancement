@@ -3,18 +3,16 @@ import time
 
 import matplotlib.pyplot as plt
 import numpy as np
-import soundfile
 import torch
 import torch.nn as nn
 from torch.utils.data import dataloader
-from torch.utils.tensorboard import SummaryWriter
 from tqdm import tqdm
-from trainer_base import TrainerBase
 
 from losses import QNLoss
-from trainer_utils import Args, EarlyStopping, Metric, plot_metric, plot_spectrogram, plot_quantity, \
+from trainer_base import TrainerBase
+from trainer_utils import Args, EarlyStopping, Metric, plot_metric, plot_quantity, \
     load_pretrained_model, load_dataset_se, load_se_model
-from utils import getStftSpec, spec2wav, preprocess, CalSigmos, GRL, seed_everything, get_logging
+from utils import spec2wav, CalSigmos, seed_everything, cal_mask_target, apply_mask_target
 
 device = torch.device('cuda') if torch.cuda.is_available() else torch.device('cpu')
 
@@ -28,26 +26,23 @@ class TrainerSEJ(TrainerBase):
 
         super().__init__(args)
 
-    @staticmethod
-    def get_loss_fn():
-        loss_fn = nn.MSELoss()
-        loss_fn.to(device=device)
-        return loss_fn
+    def get_loss_fn(self):
+        loss_fn = QNLoss(self.normalize_output, ("Class" in self.args.model2_type), self.args.score_step).to(device)
+        loss_fn2 = nn.MSELoss(reduction='mean').to(device)
+        return loss_fn, loss_fn2
 
-    def train_epoch(self, model, model_qn, x, y, loss_fn, loss_fn2, optimizer):
+    def train_epoch(self, model, model_qn, x, y, loss_fn, loss_fn2, optimizer, batch_idx):
         x = x.to(device)
         y = y.to(device)
         y_pred = model(x)
-        if self.args.se_input_type == 2:
-            mag_pred = torch.pow(y_pred[:, 0, :, :], 2) + torch.pow(y_pred[:, 1, :, :], 2)
-            # mag_true = torch.pow(y[:, 0, :, :], 2) + torch.pow(y[:, 1, :, :], 2)
+        mag_pred, mag_true = cal_mask_target(x, y, y_pred, self.mask_target, self.se_input_type)
+        if (batch_idx + 1) % 20 == 0:
+            l1 = loss_fn(model_qn, mag_pred)
+            l2 = loss_fn2(mag_pred, mag_true)
+            loss = l1 + l2
+            loss.requires_grad_(True)
         else:
-            mag_pred = torch.pow(y_pred, 2)
-            # mag_true = torch.pow(y, 2)
-        l1 = loss_fn(model_qn, mag_pred)
-        l2 = loss_fn2(y_pred, y)
-        loss = l1 + l2
-        loss.requires_grad_(True)
+            loss = loss_fn2(mag_pred, mag_true)
         optimizer.zero_grad()
         loss.backward()
         optimizer.step()
@@ -60,14 +55,9 @@ class TrainerSEJ(TrainerBase):
         x = x.to(device)
         y = y.to(device)
         y_pred = model(x)
-        if self.args.se_input_type == 2:
-            mag_pred = torch.pow(y_pred[:, 0, :, :], 2) + torch.pow(y_pred[:, 1, :, :], 2)
-            # mag_true = torch.pow(y[:, 0, :, :], 2) + torch.pow(y[:, 1, :, :], 2)
-        else:
-            mag_pred = torch.pow(y_pred, 2)
-            # mag_true = torch.pow(y, 2)
+        mag_pred, mag_true = cal_mask_target(x, y, y_pred, self.mask_target, self.se_input_type)
         l1 = loss_fn(model_qn, mag_pred)
-        l2 = loss_fn2(y_pred, y)
+        l2 = loss_fn2(mag_pred, mag_true)
         loss = l1 + l2
         return loss.item(), y_pred.cpu().detach()
 
@@ -110,8 +100,8 @@ class TrainerSEJ(TrainerBase):
         model_se = model_se.to(device)
         model_qn = model_qn.to(device)
         self.freeze_parameters(model=model_qn, names=None)
-        loss_fn = QNLoss(isClass=("Class" in self.args.model2_type), step=self.args.score_step).to(device)
-        loss_fn2 = nn.MSELoss(reduction='mean').to(device)
+
+        loss_fn, loss_fn2 = self.get_loss_fn()
 
         optimizer = self.get_optimizer(
             [{"params": model_se.parameters(), "lr": self.lr}], lr=self.lr)
@@ -146,7 +136,7 @@ class TrainerSEJ(TrainerBase):
                 model_qn.train()
                 loop_train = tqdm(enumerate(train_loader), leave=False)
                 for batch_idx, (x, _, y, _) in loop_train:
-                    loss = self.train_epoch(model_se, model_qn, x, y, loss_fn, loss_fn2, optimizer)
+                    loss = self.train_epoch(model_se, model_qn, x, y, loss_fn, loss_fn2, optimizer, batch_idx)
                     train_loss += loss
 
                     loop_train.set_description_str(f'Training [{epoch + 1}/{self.epochs}]')
@@ -166,8 +156,8 @@ class TrainerSEJ(TrainerBase):
                         valid_loss += loss
                         batch = x.shape[0]
                         if idx < q_len:
-                            est_wav = spec2wav(est_x, xp, fft_size=self.args.fft_size, hop_size=self.args.hop_size,
-                                               win_size=self.args.fft_size, input_type=self.args.se_input_type)
+                            est_wav = spec2wav(x, xp, est_x, self.fft_size, self.hop_size, self.fft_size,
+                                               input_type=self.se_input_type, mask_target=self.mask_target)
                             results = calSigmos(est_wav.cpu().detach().numpy())
                             for i in range(7):
                                 mos_48k[mos_48k_name[i]].extend(results[i])
@@ -281,8 +271,8 @@ class TrainerSEJ(TrainerBase):
         test_step = len(test_loader)
         calSigmos = CalSigmos(fs=48000, batch=True)
 
-        loss_fn = QNLoss(isClass=("Class" in self.args.model2_type), step=self.args.score_step).to(device)
-        loss_fn2 = nn.MSELoss().to(device)
+        loss_fn, loss_fn2 = self.get_loss_fn()
+
         test_loss = 0
         metric.mos_48k = {}
         for i in range(7):
@@ -295,8 +285,8 @@ class TrainerSEJ(TrainerBase):
                 test_loss += loss
                 batch = x.shape[0]
                 if idx < q_len:
-                    est_wav = spec2wav(est_x, xp, fft_size=self.args.fft_size, hop_size=self.args.hop_size,
-                                       win_size=self.args.fft_size, input_type=self.args.se_input_type)
+                    est_wav = spec2wav(x, xp, est_x, self.fft_size, self.hop_size, self.fft_size,
+                                       input_type=self.se_input_type, mask_target=self.mask_target)
 
                     results = calSigmos(est_wav.cpu().detach().numpy())
                     for i in range(7):
@@ -357,19 +347,21 @@ class TrainerSEJ(TrainerBase):
 
 
 if __name__ == "__main__":
-    path_se = r"D:\work\speechEnhancement\speechQuality\QualityNetPOLQA\models\dpcrn_se20240518_224558\final.pt"
-    path_qn = r"D:\work\speechEnhancement\speechQuality\HASANetPOLQA\models\hasa20240516_134107\final.pt"
+    path_se = r"models\dpcrn_se20240518_224558\final.pt"
+    path_qn = r"models\hasa20240522_223914\final.pt"
     # arg = Args("dpcrn_qse", model_name="dpcrn_se20240518_224558", model2_type="cnn")
-    arg = Args("dpcrn", task_type="joint", model2_type="hasa")
-    arg.epochs = 15
-    arg.batch_size = 4
-    arg.save = False
-    arg.lr = 1e-4
+    arg = Args("lstm", task_type="_joint", model2_type="hasa")
+    arg.epochs = 25
+    arg.batch_size = 8
+    arg.save = True
+    arg.lr = 2e-4
     arg.step_size = 5
     arg.delta_loss = 2e-4
 
     if arg.model2_type is None:
         raise ValueError("model qn type cannot be none")
+    
+    arg.se_input_type = 1
 
     # 训练 CNN / tcn
     # arg.optimizer_type = 1

@@ -3,7 +3,7 @@ beta1: 0.99
 beta2: 0.999
 cnn_feature: 64
 cnn_filter: 128
-delta_loss: 0.0002
+delta_loss: 0.001
 dropout: 0.3
 enable_frame: true
 epochs: 35

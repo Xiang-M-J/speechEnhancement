@@ -30,6 +30,15 @@ class TrainerBase(abc.ABC):
         self.epochs = args.epochs
         self.save_model_epoch = args.save_model_epoch
         self.lr = args.lr
+        self.mask_target = args.mask_target
+        self.se_input_type = args.se_input_type
+        self.fft_size = args.fft_size
+        self.hop_size = args.hop_size
+        self.normalize_output = args.normalize_output
+        self.score_step = args.score_step
+        self.iteration = args.iteration
+        self.iter_step = args.iter_step
+        self.save_model_step = args.save_model_step
         self.logging = get_logging("log.txt")
         if args.save:
             self.check_dir()

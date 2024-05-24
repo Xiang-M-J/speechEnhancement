@@ -3,16 +3,14 @@ import time
 
 import matplotlib.pyplot as plt
 import numpy as np
-import soundfile
 import torch
 import torch.nn as nn
 from torch.utils.data import dataloader
-from torch.utils.tensorboard import SummaryWriter
 from tqdm import tqdm
 from trainer_base import TrainerBase
-from trainer_utils import Args, EarlyStopping, Metric, plot_metric, plot_spectrogram, plot_quantity, load_dataset_se, \
+from trainer_utils import Args, EarlyStopping, Metric, load_pretrained_model, plot_metric, plot_quantity, load_dataset_se, \
     load_se_model
-from utils import getStftSpec, spec2wav, preprocess, CalSigmos, seed_everything, get_logging
+from utils import spec2wav, CalSigmos, seed_everything, apply_mask_target
 
 device = torch.device('cuda') if torch.cuda.is_available() else torch.device('cpu')
 
@@ -33,26 +31,25 @@ class TrainerSE(TrainerBase):
         loss_fn.to(device=device)
         return loss_fn
 
-    @staticmethod
-    def train_epoch(model, x, y, loss_fn, optimizer):
+    def train_epoch(self, model, x, y, loss_fn, optimizer):
         x = x.to(device)
         y = y.to(device)
         y_pred = model(x)
-        loss = loss_fn(y_pred * torch.pow(x, 2), torch.pow(y, 2))
+        loss = apply_mask_target(x, y, y_pred, loss_fn, self.mask_target, self.se_input_type)
+        # loss = loss_fn(y_pred * torch.pow(x, 2), torch.pow(y, 2))
         optimizer.zero_grad()
         loss.backward()
         optimizer.step()
         return loss.item()
 
-    @staticmethod
-    def predict(model, x, y, loss_fn):
+    def predict(self, model, x, y, loss_fn):
         """
         Return loss, y_pred
         """
         x = x.to(device)
         y = y.to(device)
         y_pred = model(x)
-        loss = loss_fn(y_pred * torch.pow(x, 2), torch.pow(y, 2))
+        loss = apply_mask_target(x, y, y_pred, loss_fn, self.mask_target, self.se_input_type)
         return loss.item(), y_pred.cpu().detach()
 
     def train(self, model: nn.Module, train_dataset, valid_dataset):
@@ -242,8 +239,8 @@ class TrainerSE(TrainerBase):
                 test_loss += loss
                 if idx < q_len:
 
-                    est_wav = spec2wav(x, xp, fft_size=self.args.fft_size, hop_size=self.args.hop_size,
-                                       win_size=self.args.fft_size, input_type=self.args.se_input_type, mask=est_x)
+                    est_wav = spec2wav(x, xp, est_x, self.fft_size, self.hop_size, self.fft_size,
+                                       input_type=self.se_input_type, mask_target=self.mask_target)
 
                     results = calSigmos(est_wav.cpu().detach().numpy())
                     for i in range(7):
@@ -305,14 +302,15 @@ class TrainerSE(TrainerBase):
 
 
 if __name__ == "__main__":
-    # arg = Args("dpcrn_se", model_name="dpcrn_se20240518_224558")
+    # arg = Args("lstm", task_type="_se", model_name="lstm_se_IAM20240522_174211", mask_target="IAM")
     arg = Args("lstm", task_type="_se", mask_target="IAM")
     arg.epochs = 35
     arg.batch_size = 32
     arg.save = True
     arg.lr = 4e-4
     arg.step_size = 5
-    arg.delta_loss = 2e-4
+    if arg.mask_target is None:
+        arg.delta_loss = 2e-4
 
     arg.se_input_type = 1
 
@@ -329,12 +327,11 @@ if __name__ == "__main__":
                                                                  arg.fft_size, arg.hop_size, arg.se_input_type)
 
     model = load_se_model(arg)
-    # model = load_pretrained_model(
-    #     r"D:\work\speechEnhancement\speechQuality\QualityNetPOLQA\models\dpcrn_se20240518_224558\final.pt")
+    # model = load_pretrained_model(r"models\lstm_se_IAM20240522_174211\final.pt")
 
     trainer = TrainerSE(arg)
     model = trainer.train(model, train_dataset=train_dataset, valid_dataset=valid_dataset)
     trainer.test(test_dataset=test_dataset, model=model, q_len=200)
 
-    trainer.inference_step(model, r"D:\work\speechEnhancement\datasets\dns_to_liang\31435_nearend.wav",
-                           r"D:\work\speechEnhancement\datasets\dns_to_liang\31435_target.wav")
+    # trainer.inference_step(model, r"D:\work\speechEnhancement\datasets\dns_to_liang\31435_nearend.wav",
+    #                        r"D:\work\speechEnhancement\datasets\dns_to_liang\31435_target.wav")

@@ -98,7 +98,7 @@ class TimeRestrictedAttention(nn.Module):
 class QualityNetAttn(nn.Module):
     """
     QualityNet with attention model
-    input shape: (N, L, C)
+    inp shape: (N, L, C)
     """
     def __init__(self, dropout=0.3) -> None:
         super(QualityNetAttn, self).__init__()
