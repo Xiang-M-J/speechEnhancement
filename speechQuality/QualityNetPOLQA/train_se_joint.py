@@ -372,7 +372,7 @@ if __name__ == "__main__":
     # arg.focal_gamma = 2
     # arg.smooth = True
 
-    if arg.save:
+    if arg.save and not arg.expire:
         arg.write(arg.model_name)
     print(arg)
 

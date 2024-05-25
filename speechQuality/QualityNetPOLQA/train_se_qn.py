@@ -363,9 +363,7 @@ if __name__ == "__main__":
     if arg.model2_type is None:
         raise ValueError("model qn type cannot be none")
 
-    # 训练 CNN / tcn
     arg.optimizer_type = 3
-    # arg.enableFrame = False
     arg.se_input_type = 1
 
     # 训练分类模型
@@ -374,7 +372,7 @@ if __name__ == "__main__":
     # arg.smooth = True
 
     print(arg)
-    if arg.save:
+    if arg.save and not arg.expire:
         arg.write(arg.model_name)
 
     seed_everything(arg.random_seed)

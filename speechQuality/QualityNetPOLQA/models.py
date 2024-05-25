@@ -116,9 +116,9 @@ class Cnn(nn.Module):
         self.conv4 = ConvBlock(filter_size, filter_size, pool_size=2, feature_dim=feature_dim, dilation=8)
         self.avg_pool = nn.Sequential(nn.Flatten(), nn.AdaptiveAvgPool1d(1))
         self.avg_linear = nn.Sequential(
-            Rearrange("N C L -> N L C"),
-            nn.LayerNorm(filter_size),
-            Rearrange("N L C -> N C L"),
+            # Rearrange("N C L -> N L C"),
+            # nn.LayerNorm(filter_size),
+            # Rearrange("N L C -> N C L"),
             nn.AdaptiveAvgPool1d(1),
             nn.Flatten(),
             nn.Linear(filter_size, 50),
@@ -161,7 +161,7 @@ class Cnn2d(nn.Module):
             nn.MaxPool2d((2, 2))
         )
         self.conv3 = nn.Sequential(
-            nn.Conv2d(32, 64, (3,3)),
+            nn.Conv2d(32, 64, (3, 3)),
             nn.BatchNorm2d(64),
             nn.LeakyReLU(0.1),
             nn.MaxPool2d((2, 2)),
@@ -170,10 +170,10 @@ class Cnn2d(nn.Module):
             nn.LeakyReLU(0.1),
         )
         self.avg = nn.Sequential(
-            nn.Conv2d(64, 128, (3,3)),
+            nn.Conv2d(64, 128, (3, 3)),
             nn.BatchNorm2d(128),
             nn.LeakyReLU(0.1),
-            nn.AvgPool2d((2,2)),
+            nn.AvgPool2d((2, 2)),
             Rearrange("N H C L -> N (H C) L"),
             nn.AdaptiveAvgPool1d(1),
             nn.Flatten(),
@@ -281,7 +281,7 @@ class CANBlock(nn.Module):
 
 
 class CANClass(nn.Module):
-    def __init__(self, channels,feature_dim, step):
+    def __init__(self, channels, feature_dim, step):
         super(CANClass, self).__init__()
         self.input = nn.Sequential(
             Rearrange("N L C -> N C L"),
@@ -319,6 +319,7 @@ class CANClass(nn.Module):
         c = self.classifier(x)
         return avg, c
 
+
 class CAN2dClass(nn.Module):
     def __init__(self, n_class):
         super(CAN2dClass, self).__init__()
@@ -342,7 +343,7 @@ class CAN2dClass(nn.Module):
             nn.MaxPool2d((2, 2))
         )
         self.conv3 = nn.Sequential(
-            nn.Conv2d(32, 64, (3,3)),
+            nn.Conv2d(32, 64, (3, 3)),
             nn.BatchNorm2d(64),
             nn.LeakyReLU(0.1),
             nn.MaxPool2d((2, 2)),
@@ -351,10 +352,10 @@ class CAN2dClass(nn.Module):
             nn.LeakyReLU(0.1),
         )
         self.avg = nn.Sequential(
-            nn.Conv2d(64, 128, (3,3)),
+            nn.Conv2d(64, 128, (3, 3)),
             nn.BatchNorm2d(128),
             nn.LeakyReLU(0.1),
-            nn.AvgPool2d((2,2)),
+            nn.AvgPool2d((2, 2)),
             Rearrange("N H C L -> N (H C) L"),
             nn.AdaptiveAvgPool1d(1),
             nn.Flatten(),
@@ -372,6 +373,7 @@ class CAN2dClass(nn.Module):
             nn.LeakyReLU(),
             nn.Linear(64, n_class)
         )
+
     def forward(self, x):
         x = self.prepare(x)
         x = self.conv1(x)
@@ -474,6 +476,7 @@ class QualityNetAttn(nn.Module):
         Average_score = self.pool(Frame_score)
         return Frame_score, Average_score
 
+
 class LstmCANClass(nn.Module):
     def __init__(self, dropout, num_class) -> None:
         super(LstmCANClass, self).__init__()
@@ -500,14 +503,13 @@ class LstmCANClass(nn.Module):
             nn.BatchNorm1d(100),
             nn.Linear(100, num_class),
         )
-    
+
     def forward(self, x):
         x, _ = self.lstm(x)
         x = self.linear1(x)
         avg = self.avg(x)
         c = self.cls(x)
         return avg, c
-
 
 
 class QualityNetClassifier(nn.Module):

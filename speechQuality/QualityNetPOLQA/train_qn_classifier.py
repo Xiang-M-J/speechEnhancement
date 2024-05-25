@@ -41,16 +41,16 @@ class TrainerC(TrainerBase):
         return [loss1, loss2]
 
     def train_epoch(self, model, x, y, loss_fns, optimizer):
-        loss1 = loss_fns[0]
+        # loss1 = loss_fns[0]
         loss2 = loss_fns[1]
 
         y1 = y[0]
         y2 = y[1]
         avg, c = model(x)
-        l1 = loss1(avg.squeeze(-1), y1)
+        # l1 = loss1(avg.squeeze(-1), y1)
         l2 = loss2(c, y1)
-        loss = 10 * l1 + l2
-        # loss = l2
+        # loss = l1 + l2
+        loss = l2
         loss.requires_grad_(True)
         accurate_num = accurate_num_cal(c, y1, self.args.score_step)
         optimizer.zero_grad()
@@ -62,15 +62,16 @@ class TrainerC(TrainerBase):
         """
         Return loss, predict score, true score, accuracy num
         """
-        loss1 = loss_fns[0]
+        # loss1 = loss_fns[0]
         loss2 = loss_fns[1]
         y1 = y[0]
         y2 = y[1]
         avg, c = model(x)
         accurate_num = accurate_num_cal(c, y1, self.args.score_step)
-        l1 = loss1(avg.squeeze(-1), y1)
+        # l1 = loss1(avg.squeeze(-1), y1)
         l2 = loss2(c, y1)
-        loss = 10 * l1 + l2
+        # loss = l1 + l2
+        loss = l2
         predict_cls = oneHotToFloat(c.cpu().detach().numpy(), self.args.score_step)
         predict_avg = avg.squeeze(-1).sigmoid().cpu().detach().numpy()
         if self.args.normalize_output:
@@ -343,10 +344,12 @@ class TrainerC(TrainerBase):
 
 
 if __name__ == "__main__":
-    arg = Args("can2dClass")
-    # arg = Args("can2dClass", model_name="can2dClass20240524_084734")
+    arg = Args("cnnClass")
+    # arg = Args("can2dClass", model_name="can2dClass20240524_203611")
+    # arg = Args("lstmcanClass", model_name="lstmcanClass20240524_185704")
+
     arg.epochs = 35
-    arg.batch_size = 16
+    arg.batch_size = 32
     arg.save = True
     arg.lr = 5e-4
     arg.step_size = 5
@@ -358,11 +361,11 @@ if __name__ == "__main__":
     arg.normalize_output = True
 
     # 训练Hubert
-    arg.optimizer_type = 1
+    # arg.optimizer_type = 1
     # arg.enable_frame = False
 
     # 训练 CNN / tcn
-    # arg.optimizer_type = 1
+    arg.optimizer_type = 1
     # arg.enableFrame = False
 
     # 训练分类模型
@@ -371,7 +374,7 @@ if __name__ == "__main__":
     # arg.smooth = True
 
     print(arg)
-    if arg.save:
+    if arg.save and not arg.expire:
         arg.write(arg.model_name)
 
     seed_everything(arg.random_seed)
@@ -381,7 +384,7 @@ if __name__ == "__main__":
                                                                  arg.fft_size, arg.hop_size, )
 
     model = load_qn_model(arg)
-    # model = load_pretrained_model(r"models\can2dClass20240524_084734\final.pt")
+    # model = load_pretrained_model(r"models\lstmcanClass20240524_185704\final.pt")
 
     # 以Class结尾时，返回TrainerC
     trainer = TrainerC(arg)

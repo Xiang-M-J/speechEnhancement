@@ -316,7 +316,7 @@ if __name__ == "__main__":
 
     # arg.optimizer_type = 1
 
-    if arg.save:
+    if arg.save and not  arg.expire:
         arg.write(arg.model_name)
     print(arg)
 

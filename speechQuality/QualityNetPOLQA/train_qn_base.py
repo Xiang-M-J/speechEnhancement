@@ -353,9 +353,9 @@ class Trainer(TrainerBase):
 
 if __name__ == "__main__":
     # arg = Args("hasa", model_name="hasa20240522_173240")
-    arg = Args("hasa")
+    arg = Args("cnn")
     arg.epochs = 35
-    arg.batch_size = 12
+    arg.batch_size = 32
     arg.save = True
     arg.lr = 5e-4
     arg.step_size = 5
@@ -373,7 +373,7 @@ if __name__ == "__main__":
     # arg.enableFrame = False
 
     print(arg)
-    if arg.save:
+    if arg.save and not  arg.expire:
         arg.write(arg.model_name)
 
     seed_everything(arg.random_seed)

@@ -155,6 +155,10 @@ class Args:
         self.load_weight = load_weight
         self.model2_type = model2_type
 
+        now_time_f = time.mktime(time.strptime(self.now_time, "%Y%m%d_%H%M%S"))
+        now_time_t = time.mktime(time.localtime())
+        self.expire = now_time_t > now_time_f + 10     # 如果实际当前时间比当前认为的时间大10s，则证明传入了model_name
+
         self.normalize_output = normalize_output
 
         # 语音质量模型与语音增强模型
