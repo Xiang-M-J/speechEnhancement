@@ -37,8 +37,8 @@ class SigMOS:
         self.window = np.sqrt(np.hanning(int(self.window_length) + 1)[:-1]).astype(np.float32)
 
         options = ort.SessionOptions()
-        options.inter_op_num_threads = 1
-        options.intra_op_num_threads = 1
+        options.inter_op_num_threads = 4
+        options.intra_op_num_threads = 4
         self.session = ort.InferenceSession(model_path_history[model_version], options)
 
     def stft(self, signal):

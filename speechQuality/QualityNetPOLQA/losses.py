@@ -96,7 +96,7 @@ class FocalEDMLoss(nn.Module):
         cdf_target = torch.cumsum(p_target_, dim=1)
         cdf_estimate = torch.cumsum(p_estimate_, dim=1)
         cdf_diff = cdf_estimate - cdf_target
-        emd = torch.sqrt(torch.sum(torch.pow(torch.abs(cdf_diff), 2), dim=-1) + 1e-5)
+        emd = torch.sqrt(torch.sum(torch.pow(torch.abs(cdf_diff), 2), dim=-1) + 1e-6)
         focal_emd = torch.pow(emd, self.gamma) * torch.log(1 + emd)
         return self.step * focal_emd.mean()
 
@@ -123,7 +123,7 @@ class FrameEDMLoss(nn.Module):
             cdf_input = torch.cumsum(input_, dim=-1)
             cdf_target = torch.cumsum(target_, dim=-1)
             cdf_diff = cdf_input - cdf_target
-            samplewise_emd = torch.sqrt(torch.mean(torch.pow(cdf_diff, 2), dim=-1) + 1e-5)
+            samplewise_emd = torch.sqrt(torch.mean(torch.pow(cdf_diff, 2), dim=-1) + 1e-6)
             return samplewise_emd.mean()
         else:
             return 0
@@ -152,7 +152,7 @@ class FocalFrameEDMLoss(nn.Module):
             cdf_input = torch.cumsum(input_, dim=-1)
             cdf_target = torch.cumsum(target_, dim=-1)
             cdf_diff = cdf_input - cdf_target
-            emd = torch.sqrt(torch.sum(torch.pow(cdf_diff, 2), dim=-1) + 1e-5)
+            emd = torch.sqrt(torch.sum(torch.pow(cdf_diff, 2), dim=-1) + 1e-6)
             focal_emd = torch.pow(emd, self.gamma) * torch.log(1 + emd)
             return self.step * focal_emd.mean()
         else:
@@ -216,6 +216,8 @@ class QNLoss(nn.Module):
         else:
             if not self.norm:
                 score = (score - 1.0) / 4.0
+            else:
+                score = score.sigmoid()
         return torch.mean(torch.pow(1 - score, 2))
 
 
@@ -236,10 +238,11 @@ class CriticLoss(nn.Module):
         else:
             if not self.norm:
                 score = (score - 1.0) / 4.0
+                score[score > 1.0] = 1.
+                score[score < 0.0] = 0.
+            else:
+                score = score.sigmoid()
 
-        score = (score - 1.0) / 4.0  # 放缩在 0-1之间
-        score[score > 1.0] = 1.
-        score[score < 0.0] = 0.
         return torch.mean(score)
 
 

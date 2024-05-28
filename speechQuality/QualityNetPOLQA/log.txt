@@ -74,3 +74,113 @@
 2024-05-25 10:57:16,472 train_qn_base.py cnn20240525_105709	0.11
 2024-05-25 10:57:42,447 train_qn_base.py cnn20240525_105729	0.21
 2024-05-25 10:59:52,682 train_qn_classifier.py cnnClass20240525_105939	0.21
+2024-05-25 12:36:32,517 train_se_qn_iter.py col: 3.2535237956505556	disc: 4.114188165618823	loud: 3.433169949513215	noise: 3.874943705705496	reverb: 4.347602929060276	sig: 3.3193175827081385	ovrl: 2.7941524191544604	
+2024-05-25 12:37:05,719 train_se_qn_iter.py col: 3.376960481588657	disc: 4.262283336657744	loud: 3.4248842917955837	noise: 3.8520555175267734	reverb: 4.238526756946857	sig: 3.4020694941282272	ovrl: 2.8767472620193777	
+2024-05-25 12:37:39,010 train_se_qn_iter.py col: 3.425002613892922	disc: 4.3135713040828705	loud: 3.394211640724769	noise: 3.8701569575529833	reverb: 4.215509118942114	sig: 3.418718160345004	ovrl: 2.9111341329721303	
+2024-05-25 12:38:11,714 train_se_qn_iter.py col: 3.4715266067248125	disc: 4.335070972259228	loud: 3.3617852261433234	noise: 3.86220314181768	reverb: 4.157425245413413	sig: 3.4123604584198732	ovrl: 2.9216896410171804	
+2024-05-25 12:38:44,437 train_se_qn_iter.py col: 3.4880471596351037	disc: 4.377603028829281	loud: 3.341646526868527	noise: 3.860345313182244	reverb: 4.1330555860812845	sig: 3.440907161969405	ovrl: 2.940952337705172	
+2024-05-25 12:39:16,795 train_se_qn_iter.py col: 3.505518234693087	disc: 4.388057328187502	loud: 3.3484425040391774	noise: 3.857061647451841	reverb: 4.102284099047001	sig: 3.4402613914929905	ovrl: 2.947491618303152	
+2024-05-25 12:39:49,287 train_se_qn_iter.py col: 3.5133760571479797	disc: 4.435171090639555	loud: 3.383591257608854	noise: 3.8191967537769904	reverb: 4.112310288044123	sig: 3.461062401533127	ovrl: 2.9805263991539297	
+2024-05-25 12:40:22,714 train_se_qn_iter.py col: 3.521003613105187	disc: 4.427375192825611	loud: 3.36904504436713	noise: 3.8445774958683896	reverb: 4.096566424920009	sig: 3.455187967190376	ovrl: 2.979628095260033	
+2024-05-25 12:40:55,880 train_se_qn_iter.py col: 3.53235452908736	disc: 4.443022361168494	loud: 3.4004762035149794	noise: 3.8110378224116106	reverb: 4.107489212201192	sig: 3.482001685179197	ovrl: 3.003156141592906	
+2024-05-25 12:41:28,573 train_se_qn_iter.py col: 3.5376797776955824	disc: 4.448542569692318	loud: 3.3954448929199805	noise: 3.8429404267897973	reverb: 4.079046629942381	sig: 3.4705541179730344	ovrl: 3.0052585991529317	
+2024-05-25 12:41:28,891 train_se_qn_iter.py lstm_qsehasa20240525_123557	5.51
+2024-05-25 12:41:28,891 train_se_qn_iter.py train loss: 0.0089, valid loss: 0.0011
+2024-05-25 12:46:27,407 train_se_qn_iter.py test loss: 0.0088
+2024-05-25 16:00:18,569 train_se_qn_iter.py dpcrn_qsehasa20240525_145014	70.03
+2024-05-25 16:00:18,569 train_se_qn_iter.py train loss: 0.0260, valid loss: 0.0025
+2024-05-25 16:06:54,672 train_se_qn_iter.py test loss: 0.0254
+2024-05-25 18:41:06,068 train_qn_base.py cnn20240525_105903	462.04
+2024-05-25 18:41:06,069 train_qn_base.py train loss: 0.0054, valid loss: 0.0087
+2024-05-25 18:44:01,644 train_qn_base.py test loss: 0.0086, mse: 0.0086,  lcc: 0.9571, srcc: 0.9242
+2024-05-25 19:50:22,762 train_qn_classifier.py cnnClass20240525_110029	529.85
+2024-05-25 19:50:22,763 train_qn_classifier.py train loss: 1.2621, valid loss: 2.7966 train acc: 51.6500, valid acc: 34.2444
+2024-05-25 19:53:35,311 train_qn_classifier.py test loss: 2.1297, mse: 0.8513,  lcc: 0.8626, srcc: 0.9123
+2024-05-26 09:24:38,125 train_se_qn_iter.py dpcrn_qsehasa20240526_092327	1.16
+2024-05-26 09:24:38,125 train_se_qn_iter.py train loss: 0.0756, valid loss: 0.0038
+2024-05-26 09:29:30,181 train_se_joint.py dpcrn_jointhasa20240525_163522	1014.10
+2024-05-26 09:29:30,183 train_se_joint.py train loss: 0.0429, valid loss: 0.0486
+2024-05-26 09:34:10,888 train_se_joint.py test loss: 0.0473
+2024-05-26 09:38:58,602 train_se_qn_iter.py lstm_qsehasa20240526_093344	5.22
+2024-05-26 09:38:58,602 train_se_qn_iter.py train loss: 0.0034, valid loss: 0.0005
+2024-05-26 09:41:43,074 train_se_qn_iter.py test loss: 0.0037
+lstm_wganhasa20240526_094511	20240526 095007	4.92
+train loss: -0.9769, valid loss: -0.1350
+lstm_wganhasa20240526_095034	20240526 102331	32.94
+train loss: -1.0400, valid loss: -0.1400 
+test loss: -0.9986 
+2024-05-26 10:40:01,044 train_se_qn_iter.py lstm_qsehasa20240526_100649	33.19
+2024-05-26 10:40:01,044 train_se_qn_iter.py train loss: 0.0405, valid loss: 0.0034
+2024-05-26 10:45:37,105 train_se_qn_iter.py test loss: 0.0454
+2024-05-26 15:15:57,087 train_se_qn_iter.py lstm_qsehasa20240526_123755	158.01
+2024-05-26 15:15:57,087 train_se_qn_iter.py train loss: 0.0039, valid loss: 0.0005
+2024-05-26 15:21:33,404 train_se_qn_iter.py test loss: 0.0036
+2024-05-26 17:01:52,176 train_se_qn_iter.py lstm_qsehasa20240526_152557	95.91
+2024-05-26 17:01:52,176 train_se_qn_iter.py train loss: 0.0000, valid loss: 0.0000
+2024-05-26 17:07:33,159 train_se_qn_iter.py MOS_COL:2.4758	MOS_DISC:4.4766	MOS_LOUD:3.2951	MOS_NOISE:3.3216	MOS_REVERB:3.4355	MOS_SIG:2.8477	MOS_OVRL:2.2548	
+2024-05-26 17:07:33,159 train_se_qn_iter.py test loss: 0.0000
+2024-05-26 19:03:19,985 train_se_qn_iter.py dpcrn_qsehasa20240526_185900	4.32
+2024-05-26 19:03:19,985 train_se_qn_iter.py train loss: 0.0287, valid loss: 0.0045
+2024-05-26 19:10:38,511 train_se_qn_iter.py dpcrn_qsehasa20240526_190406	6.53
+2024-05-26 19:10:38,511 train_se_qn_iter.py train loss: 0.0145, valid loss: 0.0023
+2024-05-26 19:30:13,914 train_se_qn_iter.py lstm_qsehasa20240526_191417	15.93
+2024-05-26 19:30:13,914 train_se_qn_iter.py train loss: 0.0032, valid loss: 0.0006
+2024-05-26 19:37:12,521 train_se_qn_iter.py MOS_COL:3.4235	MOS_DISC:3.9636	MOS_LOUD:3.0923	MOS_NOISE:3.9968	MOS_REVERB:4.1479	MOS_SIG:3.4146	MOS_OVRL:2.9757	
+2024-05-26 19:37:12,521 train_se_qn_iter.py test loss: 0.0035
+2024-05-26 20:34:58,499 train_se_qn_iter.py lstm_qsehasa20240526_200047	34.17
+2024-05-26 20:34:58,500 train_se_qn_iter.py train loss: 0.0036, valid loss: 0.0007
+2024-05-26 20:41:41,014 train_se_qn_iter.py MOS_COL:3.2621	MOS_DISC:3.5548	MOS_LOUD:3.2608	MOS_NOISE:4.0296	MOS_REVERB:4.1818	MOS_SIG:2.9532	MOS_OVRL:2.5970	
+2024-05-26 20:41:41,014 train_se_qn_iter.py test loss: 0.0028
+lstm_wganhasa20240526_205034	20240526 212150	31.26
+train loss: -0.1248, valid loss: 0.0202
+lstm_wganhasa20240526_212256	20240526 224847	85.83
+train loss: -0.2058, valid loss: 0.0058 
+test loss: 0.0300 
+2024-05-27 00:05:59,871 train_qn_base.py hasa_cp20240527_000526	0.35
+2024-05-27 00:06:31,763 train_se_joint.py dpcrn_jointhasa20240526_104018	806.20
+2024-05-27 00:06:31,765 train_se_joint.py train loss: 0.0585, valid loss: 0.0891
+2024-05-27 00:11:08,753 train_se_joint.py test loss: 0.0848
+2024-05-27 00:19:25,360 train_se_joint.py dpcrn_jointhasa20240527_001754	1.51
+2024-05-27 08:28:29,346 train_qn_base.py hasa_cp20240527_001840	489.80
+2024-05-27 08:28:29,346 train_qn_base.py train loss: 0.0224, valid loss: 0.0240
+2024-05-27 08:30:06,710 train_qn_base.py test loss: 0.0241, mse: 0.0070,  lcc: 0.9653, srcc: 0.9366
+2024-05-27 23:57:56,097 train_se_joint.py dpcrn_jointhasa20240527_002021	1417.55
+2024-05-27 23:57:56,097 train_se_joint.py train loss: 0.0465, valid loss: 0.0469
+2024-05-28 00:02:55,101 train_se_joint.py test loss: 0.0453
+2024-05-28 02:32:32,505 train_qn_base.py lstmA_cp20240527_205600	336.52
+2024-05-28 02:32:32,505 train_qn_base.py train loss: 0.0109, valid loss: 0.0121
+2024-05-28 02:34:03,340 train_qn_base.py test loss: 0.0117, mse: 0.0090,  lcc: 0.9550, srcc: 0.9183
+2024-05-28 08:35:17,543 train_se_joint.py dpcrn_jointhasa_cp20240528_002018	494.95
+2024-05-28 08:35:17,544 train_se_joint.py train loss: 0.0435, valid loss: 0.0435
+2024-05-28 08:39:46,516 train_se_joint.py MOS_COL:3.2135	MOS_DISC:3.7159	MOS_LOUD:3.3747	MOS_NOISE:3.9604	MOS_REVERB:4.1268	MOS_SIG:3.1412	MOS_OVRL:2.6366	
+2024-05-28 08:39:46,516 train_se_joint.py test loss: 0.0419
+2024-05-28 11:16:37,450 train_se_qn_iter.py lstm_qsehasa_cp20240528_103939	36.95
+2024-05-28 11:16:37,451 train_se_qn_iter.py train loss: 0.0028, valid loss: 0.0001
+2024-05-28 11:22:25,780 train_se_qn_iter.py MOS_COL:3.3197	MOS_DISC:4.2106	MOS_LOUD:3.5864	MOS_NOISE:4.1474	MOS_REVERB:3.5715	MOS_SIG:3.1157	MOS_OVRL:2.5512	
+2024-05-28 11:22:25,781 train_se_qn_iter.py test loss: 0.0004
+lstm_wganhasa_cp20240528_133900	20240528 134326	4.42
+train loss: -0.2080, valid loss: -0.1210 
+2024-05-28 13:48:00,252 train_se_wgan_iter.py MOS_COL:3.3488	MOS_DISC:3.6825	MOS_LOUD:3.4833	MOS_NOISE:4.0511	MOS_REVERB:4.1715	MOS_SIG:3.1095	MOS_OVRL:2.7178	
+test loss: -0.8684 
+lstm_wganhasa_cp20240528_135105	20240528 144606	55.01
+train loss: -0.2411, valid loss: -0.0705
+2024-05-28 14:50:46,182 train_se_wgan_iter.py MOS_COL:3.4085	MOS_DISC:3.7639	MOS_LOUD:3.5697	MOS_NOISE:4.1185	MOS_REVERB:4.1625	MOS_SIG:3.2860	MOS_OVRL:2.8778	
+test loss: -0.5051 
+2024-05-28 16:34:16,538 train_se_grl.py lstm_grlhasa_cp20240528_161927	14.81
+2024-05-28 16:34:16,538 train_se_grl.py train loss: -0.0018, valid loss: -0.0002
+2024-05-28 16:38:58,625 train_se_grl.py MOS_COL:3.3893	MOS_DISC:4.5310	MOS_LOUD:2.7521	MOS_NOISE:3.5190	MOS_REVERB:3.1834	MOS_SIG:3.1574	MOS_OVRL:2.3170	
+2024-05-28 16:38:58,625 train_se_grl.py test loss: -0.0020 
+2024-05-28 17:00:38,997 train_se_grl.py lstm_grlhasa_cp20240528_164341	16.94
+2024-05-28 17:00:38,998 train_se_grl.py train loss: -0.9978, valid loss: -0.1397
+2024-05-28 17:05:40,877 train_se_grl.py MOS_COL:3.7610	MOS_DISC:4.5116	MOS_LOUD:2.8884	MOS_NOISE:3.4416	MOS_REVERB:3.3332	MOS_SIG:3.1964	MOS_OVRL:2.6396	
+2024-05-28 17:05:40,877 train_se_grl.py test loss: -0.9979 
+2024-05-28 17:32:48,750 train_se_grl.py lstm_grlhasa_cp20240528_171310	19.63
+2024-05-28 17:32:48,750 train_se_grl.py train loss: 0.0012, valid loss: -0.0002
+2024-05-28 17:33:12,445 train_se_grl.py MOS_COL:3.4902	MOS_DISC:4.4858	MOS_LOUD:3.3124	MOS_NOISE:2.9156	MOS_REVERB:3.8224	MOS_SIG:3.3087	MOS_OVRL:2.6880	
+2024-05-28 17:33:12,445 train_se_grl.py test loss: -0.0000 
+2024-05-28 21:25:39,853 train_qn_base.py lstmA_cp20240528_151504	370.58
+2024-05-28 21:25:39,854 train_qn_base.py train loss: 0.0179, valid loss: 0.0183
+2024-05-28 21:27:17,782 train_qn_base.py test loss: 0.0183, mse: 0.0127,  lcc: 0.9354, srcc: 0.8893
+2024-05-28 22:26:49,706 train_qn_base.py lstmA_cp20240528_222639	0.17
+2024-05-28 22:45:53,888 train_qn_base.py lstmA_cp20240528_222719	18.57
+2024-05-28 22:45:53,888 train_qn_base.py train loss: 0.0790, valid loss: 0.0485

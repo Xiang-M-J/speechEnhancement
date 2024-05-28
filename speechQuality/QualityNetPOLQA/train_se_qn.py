@@ -12,7 +12,7 @@ from losses import QNLoss
 from trainer_base import TrainerBase
 from trainer_utils import Args, EarlyStopping, Metric, plot_metric, plot_quantity, load_dataset_se, \
     load_pretrained_model
-from utils import spec2wav, CalSigmos, seed_everything, cal_mask_target
+from utils import spec2wav, CalSigmos, seed_everything, cal_QN_input
 
 device = torch.device('cuda') if torch.cuda.is_available() else torch.device('cpu')
 
@@ -37,7 +37,7 @@ class TrainerQSE(TrainerBase):
         x = x.to(device)
         y = y.to(device)
         y_pred = model(x)
-        mag_pred, mag_true = cal_mask_target(x, y, y_pred, self.mask_target, self.se_input_type)
+        mag_pred, mag_true = cal_QN_input(x, y, y_pred, self.mask_target, self.se_input_type)
         mag = torch.concat([mag_pred, mag_true], 0)
         # GRL.apply(mag, 1)
         loss = loss_fn(model_qn, mag)  # qualityNet让loss尽可能小，即更接近0，对应的语音增强模型则让loss尽可能小
@@ -56,7 +56,7 @@ class TrainerQSE(TrainerBase):
         x = x.to(device)
         y = y.to(device)
         y_pred = model(x)
-        mag_pred, mag_true = cal_mask_target(x, y, y_pred, self.mask_target, self.se_input_type)
+        mag_pred, mag_true = cal_QN_input(x, y, y_pred, self.mask_target, self.se_input_type)
         loss = loss_fn(model_qn, mag_pred)
         return loss.item(), y_pred.cpu().detach()
 
@@ -372,10 +372,13 @@ if __name__ == "__main__":
     # arg.smooth = True
 
     print(arg)
-    if arg.save and not arg.expire:
-        arg.write(arg.model_name)
 
     seed_everything(arg.random_seed)
+
+    trainer = TrainerQSE(arg)
+
+    if arg.save and not arg.expire:
+        arg.write(arg.model_name)
 
     # 加载用于训练语音增强模型的数据集 x: (B, L, C)  y: (B L C) 或者 x: (B, 2, L, C)  y: (B, 2, L, C)
     train_dataset, valid_dataset, test_dataset = load_dataset_se("wav_train_se.list", arg.spilt_rate,
@@ -383,8 +386,6 @@ if __name__ == "__main__":
 
     model_se = load_pretrained_model(path_se)
     model_qn = load_pretrained_model(path_qn)
-
-    trainer = TrainerQSE(arg)
 
     model_se = trainer.train(model_se, model_qn, train_dataset=train_dataset, valid_dataset=valid_dataset)
     trainer.test(test_dataset=test_dataset, model=model_se, model_qn=model_qn, q_len=200)

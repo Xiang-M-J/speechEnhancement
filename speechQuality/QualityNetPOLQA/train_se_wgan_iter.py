@@ -12,7 +12,7 @@ from losses import CriticLoss
 from trainer_base import TrainerBase
 from trainer_utils import Args, EarlyStopping, LoaderIterator, Metric, plot_metric, plot_quantity, \
     load_pretrained_model, load_dataset_se, load_se_model
-from utils import cal_mask_target, spec2wav, CalSigmos, seed_everything
+from utils import cal_QN_input, cal_QN_input_compress, spec2wav, CalSigmos, seed_everything
 
 device = torch.device('cuda') if torch.cuda.is_available() else torch.device('cpu')
 
@@ -24,6 +24,10 @@ class TrainerSEWG(TrainerBase):
 
     def __init__(self, args: Args):
         super(TrainerSEWG, self).__init__(args)
+        if args.qn_compress:
+            self.cal_qn_input = cal_QN_input_compress
+        else:
+            self.cal_qn_input = cal_QN_input
 
     def get_loss_fn(self):
         loss1 = CriticLoss(self.normalize_output, ("Class" in self.args.model2_type), self.args.score_step).to(device)
@@ -34,25 +38,25 @@ class TrainerSEWG(TrainerBase):
         x = x.to(device)
         y = y.to(device)
         y_pred = model(x)
-        mag_pred, mag_true = cal_mask_target(x, y, y_pred, self.mask_target, self.se_input_type)
+        mag_pred, mag_true = self.cal_qn_input(x, y, y_pred, self.mask_target, self.se_input_type)
         l1 = loss_fn(model_qn, mag_true)  # f_w(x(i))
         l2 = loss_fn(model_qn, mag_pred)  # f_w(g(z(i)))
 
-        loss = l1 - l2
+        loss = - l1 + l2
         loss.requires_grad_(True)
         # 优化鉴别器
         optimizerC.zero_grad()
         loss.backward()
         optimizerC.step()
 
-        for p in model_qn.parameters():
-            p.data.clamp_(-1, 1)
+        # for p in model_qn.parameters():
+        #     p.data.clamp_(-1, 1)
 
         loss_G_ = 0
         if iteration % 5 == 0:
             y_pred = model(x)
-            mag_pred, mag_true = cal_mask_target(x, y, y_pred, self.mask_target, self.se_input_type)
-            loss_G = -loss_fn(model_qn, mag_pred)
+            mag_pred, mag_true = self.cal_qn_input(x, y, y_pred, self.mask_target, self.se_input_type)
+            loss_G = - loss_fn(model_qn, mag_pred)    # 最小化质量分数的负值，即最大化质量分数
             optimizerG.zero_grad()
             loss_G.backward()
             optimizerG.step()
@@ -67,10 +71,10 @@ class TrainerSEWG(TrainerBase):
         x = x.to(device)
         y = y.to(device)
         y_pred = model(x)
-        mag_pred, mag_true =  cal_mask_target(x, y, y_pred, self.mask_target, self.se_input_type)
-        l1 = loss_fn(model_qn, mag_true)  # f_w(x(i))
+        mag_pred, mag_true = self.cal_qn_input(x, y, y_pred, self.mask_target, self.se_input_type)
+        # l1 = loss_fn(model_qn, mag_true)  # f_w(x(i))
         l2 = loss_fn(model_qn, mag_pred)
-        loss = l1 - l2
+        loss = -l2
         return loss.item(), y_pred.cpu().detach()
 
     def freeze_parameters(self, model: nn.Module, names=None):
@@ -116,7 +120,10 @@ class TrainerSEWG(TrainerBase):
         loss_fn, loss_fn2 = self.get_loss_fn()
 
         optimizerC = torch.optim.RMSprop(model_qn.parameters(), lr=self.args.lr)
-        optimizerG = torch.optim.RMSprop(model_qn.parameters(), lr=self.args.lr)
+        if arg.model_type.startswith("dpcrn"):
+            optimizerG = torch.optim.Adam(model_se.parameters(), lr=self.args.lr)
+        else:
+            optimizerG = torch.optim.RMSprop(model_se.parameters(), lr=self.args.lr)
 
         schedulerC = self.get_scheduler(optimizerC, arg=self.args)
         schedulerG = self.get_scheduler(optimizerG, arg=self.args)
@@ -156,16 +163,18 @@ class TrainerSEWG(TrainerBase):
             max_step = self.iteration // self.iter_step
             step = 0
             for iter_idx in tqdm(range(self.iteration)):
-                
+
                 x, _, y, _ = train_iter()
-                loss = self.train_epoch(model_se, model_qn, x, y, loss_fn, loss_fn2, optimizerC, optimizerG, iter_idx)
-                train_loss += loss
+                loss1, loss2 = self.train_epoch(model_se, model_qn, x, y, loss_fn, loss_fn2, optimizerC, optimizerG,
+                                                iter_idx)
+                train_loss += loss1
+                train_loss += loss2
                 # print(f"[{iter_idx}\{self.iteration}]", end="\r", flush=True)
 
-                if (iter_idx+1) % self.iter_step == 0:
+                if (iter_idx + 1) % self.iter_step == 0:
                     model_se.eval()
                     model_qn.eval()
-                    
+
                     idx = 0
                     mos_48k = {"col": [], "disc": [], "loud": [], "noise": [], "reverb": [], "sig": [], "ovrl": []}
                     mos_48k_name = list(mos_48k.keys())
@@ -177,7 +186,7 @@ class TrainerSEWG(TrainerBase):
                             batch = x.shape[0]
                             if idx < q_len:
                                 est_wav = spec2wav(x, xp, est_x, self.fft_size, self.hop_size, self.fft_size,
-                                                input_type=self.se_input_type, mask_target=self.mask_target)
+                                                   input_type=self.se_input_type, mask_target=self.mask_target)
                                 results = calSigmos(est_wav.cpu().detach().numpy())
                                 for i in range(7):
                                     mos_48k[mos_48k_name[i]].extend(results[i])
@@ -190,8 +199,8 @@ class TrainerSEWG(TrainerBase):
                     metric.valid_loss.append(valid_loss / q_len)
                     print("")
                     print('Step {}:  train Loss:{:.4f}\t val Loss:{:.4f}'.format(
-                            step + 1, metric.train_loss[-1], metric.valid_loss[-1]))
-                    
+                        step + 1, metric.train_loss[-1], metric.valid_loss[-1]))
+
                     msg = ""
                     for k, v in mos_48k.items():
                         msg += f"{k}: {np.mean(v)}\t"
@@ -200,13 +209,12 @@ class TrainerSEWG(TrainerBase):
                         if k == "ovrl":
                             metric.ovrl.append(np.mean(v))
                     print(msg)
-                    self.logging.info(msg)
+                    # self.logging.info(msg)
 
                     if self.args.scheduler_type != 0:
                         schedulerG.step()
                         schedulerC.step()
 
-                    
                     train_loss = 0
                     valid_loss = 0
 
@@ -219,18 +227,17 @@ class TrainerSEWG(TrainerBase):
                             torch.save(model_se, self.model_path + f"{step}.pt")
                         self.writer.add_scalar('train loss', metric.train_loss[-1], step + 1)
                         self.writer.add_scalar('valid loss', metric.valid_loss[-1], step + 1)
-                        self.writer.add_scalar("sig", metric.sig[-1], step+1)
-                        self.writer.add_scalar("ovrl", metric.ovrl[-1], step+1)
+                        self.writer.add_scalar("sig", metric.sig[-1], step + 1)
+                        self.writer.add_scalar("ovrl", metric.ovrl[-1], step + 1)
                         self.writer.add_scalar('lr', optimizerC.param_groups[0]['lr'], step + 1)
                         np.save(os.path.join(self.data_path, "train_metric.npy"), metric.items())
-                    
 
                     # 实时显示损失变化
                     plt.clf()
                     plt.plot(metric.train_loss)
                     plt.plot(metric.valid_loss)
                     plt.ylabel("loss")
-                    plt.xlabel("epoch")
+                    plt.xlabel("mini-epoch")
                     plt.legend(["train loss", "valid loss"])
                     plt.title(f"{self.args.model_type} loss")
                     plt.pause(0.02)
@@ -252,24 +259,22 @@ class TrainerSEWG(TrainerBase):
                         if self.args.save:
                             torch.save(model_se, self.final_model_path)
                             print(f"early stop..., saving model to {self.final_model_path}")
-                        break
-                    
+                        # break
+
             # 训练结束时需要进行的工作
             end_time = time.time()
             tqdm.write('Train ran for %.2f minutes' % ((end_time - start_time) / 60.))
-            with open("log.txt", mode='a', encoding="utf-8") as f:
-                f.write(
-                    self.args.model_name + f"\t{time.strftime('%Y%m%d %H%M%S', time.localtime())}\t" + "{:.2f}".format(
-                        (end_time - start_time) / 60.) + "\n")
-                f.write(
-                    "train loss: {:.4f}, valid loss: {:.4f} \n".format(metric.train_loss[-1], metric.valid_loss[-1]))
+            self.logging.info(self.args.model_name + "\t{:.2f}".format((end_time - start_time) / 60.))
+            self.logging.info("train loss: {:.4f}, valid loss: {:.4f}"
+                              .format(metric.train_loss[-1], metric.valid_loss[-1]))
             if self.args.save:
                 plt.clf()
                 torch.save(model_se, self.final_model_path)
                 tqdm.write(f"save model(final): {self.final_model_path}")
                 np.save(os.path.join(self.data_path, "train_metric.npy"), metric.items())
                 fig = plot_metric({"train_loss": metric.train_loss, "valid_loss": metric.valid_loss},
-                                  title="train and valid loss", result_path=self.image_path)
+                                  title="train and valid loss", xlabel="mini-epoch", ylabel="",
+                                  result_path=self.image_path)
                 self.writer.add_figure("learn loss", fig)
                 self.writer.add_text("beat valid loss", f"{metric.best_valid_loss}")
                 self.writer.add_text("duration", "{:2f}".format((end_time - start_time) / 60.))
@@ -279,11 +284,9 @@ class TrainerSEWG(TrainerBase):
             # 训练结束时需要进行的工作
             end_time = time.time()
             tqdm.write('Train ran for %.2f minutes' % ((end_time - start_time) / 60.))
-            with open("log.txt", mode='a', encoding="utf-8") as f:
-                f.write(
-                    self.args.model_name + f"\t{time.strftime('%Y%m%d %H%M%S', time.localtime())}\t" + "{:.2f}".format(
-                        (end_time - start_time) / 60.) + "\n")
-                f.write("train loss: {:.4f}, valid loss: {:.4f}\n".format(metric.train_loss[-1], metric.valid_loss[-1]))
+            self.logging.info(self.args.model_name + "\t{:.2f}".format((end_time - start_time) / 60.))
+            self.logging.info("train loss: {:.4f}, valid loss: {:.4f}"
+                              .format(metric.train_loss[-1], metric.valid_loss[-1]))
             if self.args.save:
                 plt.clf()
                 torch.save(model_se, self.final_model_path)
@@ -333,6 +336,8 @@ class TrainerSEWG(TrainerBase):
                     results = calSigmos(est_wav.cpu().detach().numpy())
                     for i in range(7):
                         metric.mos_48k[metric.mos_48k_name[i]].extend(results[i])
+                else:
+                    break
                 idx += batch
 
         metric.test_loss = test_loss / test_step
@@ -344,9 +349,9 @@ class TrainerSEWG(TrainerBase):
             mean_mos_str += name
             mean_mos_str += ":{:.4f}\t".format(np.mean(metric.mos_48k[name]))
         print(mean_mos_str)
+        self.logging.info(mean_mos_str)
 
-        with open("log.txt", mode='a', encoding="utf-8") as f:
-            f.write("test loss: {:.4f} \n".format(metric.test_loss))
+        self.logging.info("test loss: {:.4f} \n".format(metric.test_loss))
 
         if self.args.save:
             self.writer.add_text("test metric", str(metric))
@@ -389,33 +394,41 @@ class TrainerSEWG(TrainerBase):
 
 
 if __name__ == "__main__":
-    path_se = r"models\dpcrn_se20240518_224558\final.pt"
-    path_qn = r"models\hasa20240522_223914\final.pt"
+    path_se = r"models\lstm_se20240521_173158\final.pt"
+    # path_qn = r"models\hasa20240523_102833\final.pt"
+    path_qn = r"models\hasa_cp20240527_001840\final.pt"
+
     # arg = Args("dpcrn_qse", model_name="dpcrn_se20240518_224558", model2_type="cnn")
-    arg = Args("dpcrn", task_type="_wgan", model2_type="hasa")
+    # arg = Args("lstm", task_type="_wgan", model2_type="hasa")
+    arg = Args("lstm", "_wgan", "hasa", qn_compress=True, normalize_output=True)
     arg.epochs = 15
-    arg.batch_size = 4
+    arg.batch_size = 8
     arg.save = False
     arg.lr = 5e-5
-    
+
     arg.delta_loss = 2e-4
 
-    arg.iteration = 4 * 72000 // arg.batch_size
-    arg.iter_step = 50
-    arg.step_size = 5
+    arg.iteration = 2 * 72000 // arg.batch_size
+    arg.iter_step = 25
+    arg.step_size = 25
 
     if arg.model2_type is None:
         raise ValueError("model qn type cannot be none")
+
+    arg.se_input_type = 1
 
     # 训练 CNN / tcn
     # arg.optimizer_type = 1
     # arg.enableFrame = False
 
-    if arg.save and not arg.expire:
-        arg.write(arg.model_name)
     print(arg)
 
     seed_everything(arg.random_seed)
+
+    trainer = TrainerSEWG(arg)
+
+    if arg.save and not arg.expire:
+        arg.write(arg.model_name)
 
     # 加载用于训练语音增强模型的数据集 x: (B, L, C)  y: (B L C)
     train_dataset, valid_dataset, test_dataset = load_dataset_se("wav_train_se.list", arg.spilt_rate,
@@ -424,8 +437,6 @@ if __name__ == "__main__":
     model_se = load_pretrained_model(path_se)
     # model_se = load_se_model(arg)
     model_qn = load_pretrained_model(path_qn)
-
-    trainer = TrainerSEWG(arg)
 
     model_se = trainer.train(model_se, model_qn, train_dataset=train_dataset, valid_dataset=valid_dataset)
     trainer.test(test_dataset=test_dataset, model=model_se, model_qn=model_qn, q_len=200)

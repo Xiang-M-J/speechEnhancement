@@ -18,6 +18,8 @@ class TrainerBase(abc.ABC):
 
     def __init__(self, args: Args):
         self.args: Args = args
+        if self.validateArg(self.args):
+            raise ValueError("参数错误")
         self.optimizer_type = args.optimizer_type
         self.model_path = f"models/{args.model_name}/"
         self.best_model_path = self.model_path + "best.pt"  # 模型保存路径(max val acc)
@@ -39,10 +41,24 @@ class TrainerBase(abc.ABC):
         self.iteration = args.iteration
         self.iter_step = args.iter_step
         self.save_model_step = args.save_model_step
+        self.qn_compress = args.qn_compress
         self.logging = get_logging("log.txt")
         if args.save:
             self.check_dir()
             self.writer = SummaryWriter("runs/" + self.args.model_name)
+
+    @staticmethod
+    def validateArg(arg: Args):
+        if "lstm_se" in arg.model_name and arg.se_input_type != 1:
+            return True
+        if "dpcrn" in arg.model_name and arg.se_input_type != 2:
+            return True
+        if "dpcrn" in arg.model_name and arg.optimizer_type != 1:
+            return True
+        if "lstm_se" in arg.model_name and arg.optimizer_type != 3:
+            return True
+        print(f"optimizer type is {arg.optimizer_type}")
+        return False
 
     def check_dir(self):
         """
@@ -123,7 +139,8 @@ class TrainerBase(abc.ABC):
                                 filename=wav_name + "_干净语音语谱图",
                                 result_path=self.inference_result_path)
 
-        feat_x, phase_x = getStftSpec(noise_wav, self.args.fft_size, self.args.hop_size, self.args.fft_size, self.args.se_input_type)
+        feat_x, phase_x = getStftSpec(noise_wav, self.args.fft_size, self.args.hop_size, self.args.fft_size,
+                                      self.args.se_input_type)
         with torch.no_grad():
             est_x = model(feat_x.unsqueeze(0).to(device)).squeeze(0).cpu().detach()
         est_wav = spec2wav(est_x.unsqueeze(0), phase_x, self.args.fft_size, self.args.hop_size, self.args.fft_size,

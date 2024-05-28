@@ -6,7 +6,7 @@ import torch
 from sklearn.metrics import classification_report, confusion_matrix
 
 from models import QualityNet, Cnn, QualityNetAttn, QualityNetClassifier, CnnClass, Cnn2d, CnnAttn, HASANet, Cnn2, \
-    CANClass, CAN2dClass, LstmCANClass
+    CANClass, CAN2dClass, LstmCANClass, LSTMAttn
 from lstm import lstm_net
 from DPCRN import dpcrn
 from hubert import Hubert
@@ -23,7 +23,7 @@ dpi = 300
 forget_gate_bias = -3
 
 
-def load_dataset_qn(path, spilt_rate, fft_size=512, hop_size=256, return_wav=False):
+def load_dataset_qn(path, spilt_rate, fft_size=512, hop_size=256, return_wav=False, qn_compress=False):
     wav_list = ListRead(path)
     random.shuffle(wav_list)
 
@@ -36,9 +36,9 @@ def load_dataset_qn(path, spilt_rate, fft_size=512, hop_size=256, return_wav=Fal
 
     Test_list = wav_list[train_length + valid_length:]
 
-    train_dataset = DNSPOLQADataset(Train_list, fft_size=fft_size, hop_size=hop_size, return_wav=return_wav)
-    valid_dataset = DNSPOLQADataset(Valid_list, fft_size=fft_size, hop_size=hop_size, return_wav=return_wav)
-    test_dataset = DNSPOLQADataset(Test_list, fft_size=fft_size, hop_size=hop_size, return_wav=return_wav)
+    train_dataset = DNSPOLQADataset(Train_list, fft_size, hop_size, qn_compress=qn_compress, return_wav=return_wav)
+    valid_dataset = DNSPOLQADataset(Valid_list, fft_size, hop_size, qn_compress=qn_compress, return_wav=return_wav)
+    test_dataset = DNSPOLQADataset(Test_list, fft_size, hop_size, qn_compress=qn_compress, return_wav=return_wav)
     return train_dataset, valid_dataset, test_dataset
 
 
@@ -105,8 +105,9 @@ class Args:
                  input_type=2,
                  mask_target=None,
                  iteration=10000,
-                 iter_step = 100,
-                 save_model_step = 10
+                 iter_step=100,
+                 save_model_step=10,
+                 qn_compress=None
                  ):
         """
         Args:
@@ -132,16 +133,20 @@ class Args:
             input_type: 语音增强模型的输入类型（1：lstm，只输入压缩过的幅度谱，2：dpcrn）
             task_type: 任务类型
             mask_target: 是否训练mask(IAM)
+            qn_compress: 训练语音质量模型的数据是否需要压缩幅度
         """
 
         # 基础参数
         if task_type == "_se":
-            self.model_type = model_type + task_type + ("" if mask_target is None else ("_"+mask_target))
+            self.model_type = model_type + task_type + ("" if mask_target is None else ("_" + mask_target))
         else:
             self.model_type = model_type + task_type
+
         if model_name is None:
             self.now_time = time.strftime('%Y%m%d_%H%M%S', time.localtime())
             model_name = self.model_type + ("" if model2_type is None else model2_type)
+            if qn_compress is not None:
+                model_name = model_name + "_cp" if qn_compress else ""
             self.model_name = model_name + self.now_time
         else:
             self.now_time = model_name[-15:]
@@ -157,9 +162,11 @@ class Args:
 
         now_time_f = time.mktime(time.strptime(self.now_time, "%Y%m%d_%H%M%S"))
         now_time_t = time.mktime(time.localtime())
-        self.expire = now_time_t > now_time_f + 10     # 如果实际当前时间比当前认为的时间大10s，则证明传入了model_name
+        self.expire = now_time_t > now_time_f + 10  # 如果实际当前时间比当前认为的时间大10s，则证明传入了model_name
 
+        # 语音质量模型
         self.normalize_output = normalize_output
+        self.qn_compress = qn_compress
 
         # 语音质量模型与语音增强模型
         self.iteration = iteration
@@ -379,16 +386,18 @@ def plot_spectrogram(wav, fs, fft_size, hop_size, title: str = "语谱图", file
     plt.savefig(os.path.join(result_path, f"{filename}.png"), dpi=dpi)
     return fig
 
+
 class LoaderIterator:
     """
     将 loader 转为迭代器
     """
+
     def __init__(self, loader) -> None:
         self.idx = 0
         self.loader = loader
         self.max_idx = len(loader)
         self.iterator = iter(loader)
-    
+
     def __call__(self):
         if self.idx == self.max_idx:
             self.iterator = iter(self.loader)
@@ -397,13 +406,13 @@ class LoaderIterator:
         self.idx += 1
         return ret_value
 
-    
 
 def load_qn_model(args: Args):
     if args.model_type == "lstm":
         model = QualityNet(args.dropout)
     elif args.model_type == "lstmA":
-        model = QualityNetAttn(args.dropout)
+        # model = QualityNetAttn(args.dropout)
+        model = LSTMAttn(args.dropout)
     elif args.model_type == "cnn":
         model = Cnn(args.cnn_filter, args.cnn_feature, args.dropout)
     elif args.model_type == "hasa":

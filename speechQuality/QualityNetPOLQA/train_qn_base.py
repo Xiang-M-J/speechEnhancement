@@ -14,6 +14,7 @@ from trainer_utils import (Args, EarlyStopping, Metric, plot_metric, load_qn_mod
 from losses import FrameMse, FrameMse2, FrameMseNorm
 from utils import normalize, seed_everything, denormalize
 from trainer_base import TrainerBase
+
 device = torch.device('cuda') if torch.cuda.is_available() else torch.device('cpu')
 
 
@@ -353,9 +354,9 @@ class Trainer(TrainerBase):
 
 if __name__ == "__main__":
     # arg = Args("hasa", model_name="hasa20240522_173240")
-    arg = Args("cnn")
+    arg = Args("lstmA", qn_compress=True)
     arg.epochs = 35
-    arg.batch_size = 32
+    arg.batch_size = 64
     arg.save = True
     arg.lr = 5e-4
     arg.step_size = 5
@@ -363,6 +364,9 @@ if __name__ == "__main__":
 
     # 用于 qualityNet
     arg.normalize_output = True
+
+    if arg.qn_compress is None:
+        raise ValueError("qn_compress can not be None")
 
     # 训练Hubert
     # arg.optimizer_type = 1
@@ -373,18 +377,19 @@ if __name__ == "__main__":
     # arg.enableFrame = False
 
     print(arg)
-    if arg.save and not  arg.expire:
-        arg.write(arg.model_name)
 
     seed_everything(arg.random_seed)
 
-    # 加载用于预测polqa分数的数据集 x: (B, L, C), y1: (B,), y2: (B, L)
-    train_dataset, valid_dataset, test_dataset = load_dataset_qn("wav_train_qn.list", arg.spilt_rate,
-                                                                 arg.fft_size, arg.hop_size, return_wav=False)
-
-    model = load_qn_model(arg)
     # model = load_pretrained_model(r"models/hasa20240522_173240/final.pt")
 
     trainer = Trainer(arg)
+    if arg.save and not arg.expire:
+        arg.write(arg.model_name)
+
+    # 加载用于预测polqa分数的数据集 x: (B, L, C), y1: (B,), y2: (B, L)
+    train_dataset, valid_dataset, test_dataset = load_dataset_qn("wav_train_qn.list", arg.spilt_rate,arg.fft_size,
+                                                                 arg.hop_size, return_wav=False, qn_compress=arg.qn_compress)
+
+    model = load_qn_model(arg)
     model = trainer.train(model, train_dataset=train_dataset, valid_dataset=valid_dataset)
     trainer.test(test_dataset=test_dataset, model=model)

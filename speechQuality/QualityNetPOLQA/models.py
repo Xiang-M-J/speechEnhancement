@@ -462,7 +462,7 @@ class QualityNetAttn(nn.Module):
         self.linear2 = nn.Linear(50, 1)
         self.pool = nn.AdaptiveAvgPool1d(1)
         self.attn = TimeRestrictedAttention(200, 64, offset=64)
-        # self.attn = MyMultiheadAttention()
+        # self.attn = nn.MultiheadAttention(200, 8, dropout=dropout)
         self.mask = None
 
     def forward(self, x):
@@ -477,6 +477,30 @@ class QualityNetAttn(nn.Module):
         return Frame_score, Average_score
 
 
+class LSTMAttn(nn.Module):
+    """
+    QualityNet with attention model
+    inp shape: (N, L, C)
+    """
+
+    def __init__(self, dropout=0.3) -> None:
+        super(LSTMAttn, self).__init__()
+        self.lstm = nn.LSTM(257, 100, num_layers=1, bidirectional=True, dropout=0., batch_first=True)
+        self.linear1 = nn.Linear(200, 1)  # 2 * 100
+        
+        self.pool = nn.AdaptiveAvgPool1d(1)
+        self.attn = nn.MultiheadAttention(200, 8, dropout=0.1)
+        self.ln = nn.LayerNorm(200)
+
+    def forward(self, x):
+        lstm_out, _ = self.lstm(x)
+        lstm_out, attn = self.attn(lstm_out, lstm_out, lstm_out)
+        lstm_out = self.ln(lstm_out)
+        Frame_score = ((self.linear1(lstm_out))).squeeze(-1)
+        Average_score = self.pool(Frame_score)
+        return Frame_score, Average_score
+
+
 class LstmCANClass(nn.Module):
     def __init__(self, dropout, num_class) -> None:
         super(LstmCANClass, self).__init__()
@@ -486,7 +510,6 @@ class LstmCANClass(nn.Module):
             nn.ELU(),
             nn.Dropout(dropout)
         )
-
         self.avg = nn.Sequential(
             Rearrange("N L C -> N C L"),
             nn.AdaptiveAvgPool1d(128),

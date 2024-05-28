@@ -8,9 +8,10 @@ import torch.nn as nn
 from torch.utils.data import dataloader
 from tqdm import tqdm
 from trainer_base import TrainerBase
-from trainer_utils import Args, EarlyStopping, Metric, load_pretrained_model, plot_metric, plot_quantity, load_dataset_se, \
+from trainer_utils import Args, EarlyStopping, Metric, load_pretrained_model, plot_metric, plot_quantity, \
+    load_dataset_se, \
     load_se_model
-from utils import spec2wav, CalSigmos, seed_everything, apply_mask_target
+from utils import spec2wav, CalSigmos, seed_everything, apply_SE_Loss
 
 device = torch.device('cuda') if torch.cuda.is_available() else torch.device('cpu')
 
@@ -35,7 +36,7 @@ class TrainerSE(TrainerBase):
         x = x.to(device)
         y = y.to(device)
         y_pred = model(x)
-        loss = apply_mask_target(x, y, y_pred, loss_fn, self.mask_target, self.se_input_type)
+        loss = apply_SE_Loss(x, y, y_pred, loss_fn, self.mask_target, self.se_input_type)
         # loss = loss_fn(y_pred * torch.pow(x, 2), torch.pow(y, 2))
         optimizer.zero_grad()
         loss.backward()
@@ -49,7 +50,7 @@ class TrainerSE(TrainerBase):
         x = x.to(device)
         y = y.to(device)
         y_pred = model(x)
-        loss = apply_mask_target(x, y, y_pred, loss_fn, self.mask_target, self.se_input_type)
+        loss = apply_SE_Loss(x, y, y_pred, loss_fn, self.mask_target, self.se_input_type)
         return loss.item(), y_pred.cpu().detach()
 
     def train(self, model: nn.Module, train_dataset, valid_dataset):
@@ -316,11 +317,14 @@ if __name__ == "__main__":
 
     # arg.optimizer_type = 1
 
-    if arg.save and not  arg.expire:
-        arg.write(arg.model_name)
     print(arg)
 
     seed_everything(arg.random_seed)
+
+    trainer = TrainerSE(arg)
+
+    if arg.save and not arg.expire:
+        arg.write(arg.model_name)
 
     # 加载用于训练语音增强模型的数据集 x: (B, L, C)  y: (B L C)
     train_dataset, valid_dataset, test_dataset = load_dataset_se("wav_train_se.list", arg.spilt_rate,
@@ -329,7 +333,6 @@ if __name__ == "__main__":
     model = load_se_model(arg)
     # model = load_pretrained_model(r"models\lstm_se_IAM20240522_174211\final.pt")
 
-    trainer = TrainerSE(arg)
     model = trainer.train(model, train_dataset=train_dataset, valid_dataset=valid_dataset)
     trainer.test(test_dataset=test_dataset, model=model, q_len=200)
 

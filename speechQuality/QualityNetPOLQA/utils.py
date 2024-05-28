@@ -48,11 +48,13 @@ def Sp_and_phase(path, fft_size=512, hop_size=256, Noisy=False, compress=False):
 
 
 class DNSPOLQADataset(Dataset):
-    def __init__(self, wav_files: list[str], fft_size: int = 512, hop_size: int = 256, return_wav=False):
+    def __init__(self, wav_files: list[str], fft_size: int = 512, hop_size: int = 256,
+                 qn_compress=False, return_wav=False):
         super(DNSPOLQADataset, self).__init__()
         self.fft_size = fft_size
         self.hop_size = hop_size
         self.return_wav = return_wav
+        self.qn_compress = qn_compress
         self.wav = []
         self.polqa = []
         for wav_file in wav_files:
@@ -67,7 +69,7 @@ class DNSPOLQADataset(Dataset):
             noisy_LP, fs = torchaudio.load(wav)
             noisy_LP = noisy_LP / torch.max(torch.abs(noisy_LP))
         else:
-            noisy_LP, _ = Sp_and_phase(wav)
+            noisy_LP, _ = Sp_and_phase(wav, self.fft_size, self.hop_size, False, self.qn_compress)
         noisy_LP = noisy_LP.to(device)
         return noisy_LP, [polqa, polqa * torch.ones([noisy_LP.shape[0]], dtype=torch.float32, device=device)]
 
@@ -392,9 +394,9 @@ def get_logging(filename):
     return logger
 
 
-def apply_mask_target(x, y, y_pred, loss_fn, mask_target, input_type):
+def apply_SE_Loss(x, y, y_pred, loss_fn, mask_target, input_type):
     """
-    根据 mask_target 计算损失
+    根据 mask_target 和 input_type 计算损失
     """
     if mask_target is None:
         return loss_fn(y_pred, y)
@@ -408,20 +410,23 @@ def apply_mask_target(x, y, y_pred, loss_fn, mask_target, input_type):
             x_mag = get_mag(x, 1)
             y_mag = get_mag(y, 1)
             n_mag = x_mag - y_mag
-            return loss_fn(y_pred * torch.sqrt(torch.add(torch.pow(y_mag, 2), torch.pow(n_mag, 2))), y_mag)
+            return loss_fn(y_pred * torch.sqrt(torch.add(torch.pow(y_mag, 2), torch.pow(n_mag, 2))+1e-6), y_mag)
         elif input_type == 2:
             raise NotImplementedError
     else:
         raise NotImplementedError
 
 
-def cal_mask_target(x, y, y_pred, mask_target, input_type):
+def cal_QN_input(x, y, y_pred, mask_target, input_type):
     """
     根据 mask_target 计算幅度谱，用于QualityNet的输入
     返回：增强后的幅度谱，干净的幅度谱
     """
     if mask_target is None:
-        return y_pred, y
+        if input_type == 1:
+            return torch.pow(y_pred, 2), torch.pow(y, 2)
+        else:
+            return torch.pow(torch.norm(y_pred, dim=1), 2), torch.pow(torch.norm(y, dim=1), 2)
     elif mask_target == "IAM":
         if input_type == 1:
             return y_pred * torch.pow(x, 2), torch.pow(y, 2)
@@ -438,6 +443,32 @@ def cal_mask_target(x, y, y_pred, mask_target, input_type):
     else:
         raise NotImplementedError
 
+
+def cal_QN_input_compress(x, y, y_pred, mask_target, input_type):
+    """
+    根据 mask_target 计算幅度谱，用于QualityNet的输入
+    返回：增强后的幅度谱，干净的幅度谱
+    """
+    if mask_target is None:
+        if input_type == 1:
+            return y_pred, y
+        else:
+            return torch.norm(y_pred, dim=1), torch.norm(y, dim=1)
+    elif mask_target == "IAM":
+        if input_type == 1:
+            return torch.sqrt(y_pred + 1e-6) * x, y
+        elif input_type == 2:
+            raise NotImplementedError
+    elif mask_target == "IRM":
+        if input_type == 1:
+            x_mag = get_mag(x, 1)
+            y_mag = get_mag(y, 1)
+            n_mag = x_mag - y_mag
+            return torch.sqrt(y_pred * torch.sqrt(torch.add(torch.pow(y_mag, 2), torch.pow(n_mag, 2)) + 1e-6) + 1e-6), y
+        elif input_type == 2:
+            raise NotImplementedError
+    else:
+        raise NotImplementedError
 
 def get_mag(x, input_type):
     if input_type == 1:

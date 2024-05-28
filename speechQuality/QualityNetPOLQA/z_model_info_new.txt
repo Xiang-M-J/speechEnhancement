@@ -2,6 +2,7 @@ hasa20240522_173240：局部mask+归一化输出      	mse: 0.0073,  lcc: 0.9636
 hasa20240522_223914：局部mask+不归一化输出    	mse: 0.1209,  lcc: 0.9626, srcc: 0.9359
 hasa20240523_102833：无局部mask+不归一化输出  	mse: 0.1189,  lcc: 0.9636, srcc: 0.9365
 hasa20240523_204914：无局部mask+归一化输出    	mse: 0.0071,  lcc: 0.9645, srcc: 0.9365
+hasa_cp20240527_001840：压缩输入幅度		mse: 0.0070,  lcc: 0.9653, srcc: 0.9366
 
 can2dClass20240523_162129：avg norm mse损失，cls 交叉熵损失 预测为avg+cls	mse: 0.1385,  lcc: 0.9610, srcc: 0.9353
 can2dClass20240523_162129：avg norm mse损失，cls 交叉熵损失 预测为 cls	mse: 0.1462,  lcc: 0.9588, srcc: 0.9377
@@ -22,3 +23,5 @@ lstmcanClass20240524_185704：avg norm mse 损失（x10），cls 交叉熵损失
 lstm_se20240521_173158  模型最后的激活函数为 softplus 函数                                MOS_SIG:2.7743  MOS_OVRL:2.3997	
 lstm_se20240521_235804  模型最后的激活函数为 sigmoid 函数（应该是尝试训练mask时留下来的）   MOS_SIG:2.8192	MOS_OVRL:2.4243	
 lstm_se_IAM20240522_174211  正式训练mask（IAM）                                         MOS_SIG:2.8487	MOS_OVRL:2.4443	
+
+注意之前在使用语音质量模型训练语音增强模型时，在采用LSTM作为语音增强模型时，语音质量模型的输入有误，缺少

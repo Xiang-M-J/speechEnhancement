@@ -12,7 +12,7 @@ from losses import CriticLoss
 from trainer_base import TrainerBase
 from trainer_utils import Args, EarlyStopping, Metric, plot_metric, plot_quantity, \
     load_pretrained_model, load_dataset_se, load_se_model
-from utils import cal_mask_target, spec2wav, CalSigmos, seed_everything
+from utils import cal_QN_input, spec2wav, CalSigmos, seed_everything
 
 device = torch.device('cuda') if torch.cuda.is_available() else torch.device('cpu')
 
@@ -34,7 +34,7 @@ class TrainerSEWG(TrainerBase):
         x = x.to(device)
         y = y.to(device)
         y_pred = model(x)
-        mag_pred, mag_true = cal_mask_target(x, y, y_pred, self.mask_target, self.se_input_type)
+        mag_pred, mag_true = cal_QN_input(x, y, y_pred, self.mask_target, self.se_input_type)
         l1 = loss_fn(model_qn, mag_true)  # f_w(x(i))
         l2 = loss_fn(model_qn, mag_pred)  # f_w(g(z(i)))
 
@@ -51,7 +51,7 @@ class TrainerSEWG(TrainerBase):
         loss_G_ = 0
         if iteration % 5 == 0:
             y_pred = model(x)
-            mag_pred, mag_true = cal_mask_target(x, y, y_pred, self.mask_target, self.se_input_type)
+            mag_pred, mag_true = cal_QN_input(x, y, y_pred, self.mask_target, self.se_input_type)
             loss_G = -loss_fn(model_qn, mag_pred)
             optimizerG.zero_grad()
             loss_G.backward()
@@ -67,7 +67,7 @@ class TrainerSEWG(TrainerBase):
         x = x.to(device)
         y = y.to(device)
         y_pred = model(x)
-        mag_pred, mag_true =  cal_mask_target(x, y, y_pred, self.mask_target, self.se_input_type)
+        mag_pred, mag_true = cal_QN_input(x, y, y_pred, self.mask_target, self.se_input_type)
         l1 = loss_fn(model_qn, mag_true)  # f_w(x(i))
         l2 = loss_fn(model_qn, mag_pred)
         loss = l1 - l2
@@ -235,12 +235,9 @@ class TrainerSEWG(TrainerBase):
             # 训练结束时需要进行的工作
             end_time = time.time()
             tqdm.write('Train ran for %.2f minutes' % ((end_time - start_time) / 60.))
-            with open("log.txt", mode='a', encoding="utf-8") as f:
-                f.write(
-                    self.args.model_name + f"\t{time.strftime('%Y%m%d %H%M%S', time.localtime())}\t" + "{:.2f}".format(
-                        (end_time - start_time) / 60.) + "\n")
-                f.write(
-                    "train loss: {:.4f}, valid loss: {:.4f} \n".format(metric.train_loss[-1], metric.valid_loss[-1]))
+            self.logging.info(self.args.model_name + "\t{:.2f}".format((end_time - start_time) / 60.))
+            self.logging.info("train loss: {:.4f}, valid loss: {:.4f}"
+                              .format(metric.train_loss[-1], metric.valid_loss[-1]))
             if self.args.save:
                 plt.clf()
                 torch.save(model_se, self.final_model_path)
@@ -257,11 +254,9 @@ class TrainerSEWG(TrainerBase):
             # 训练结束时需要进行的工作
             end_time = time.time()
             tqdm.write('Train ran for %.2f minutes' % ((end_time - start_time) / 60.))
-            with open("log.txt", mode='a', encoding="utf-8") as f:
-                f.write(
-                    self.args.model_name + f"\t{time.strftime('%Y%m%d %H%M%S', time.localtime())}\t" + "{:.2f}".format(
-                        (end_time - start_time) / 60.) + "\n")
-                f.write("train loss: {:.4f}, valid loss: {:.4f}\n".format(metric.train_loss[-1], metric.valid_loss[-1]))
+            self.logging.info(self.args.model_name + "\t{:.2f}".format((end_time - start_time) / 60.))
+            self.logging.info("train loss: {:.4f}, valid loss: {:.4f}"
+                              .format(metric.train_loss[-1], metric.valid_loss[-1]))
             if self.args.save:
                 plt.clf()
                 torch.save(model_se, self.final_model_path)
@@ -323,8 +318,7 @@ class TrainerSEWG(TrainerBase):
             mean_mos_str += ":{:.4f}\t".format(np.mean(metric.mos_48k[name]))
         print(mean_mos_str)
 
-        with open("log.txt", mode='a', encoding="utf-8") as f:
-            f.write("test loss: {:.4f} \n".format(metric.test_loss))
+        self.logging.info("test loss: {:.4f} \n".format(metric.test_loss))
 
         if self.args.save:
             self.writer.add_text("test metric", str(metric))
@@ -385,11 +379,14 @@ if __name__ == "__main__":
     # arg.optimizer_type = 1
     # arg.enableFrame = False
 
-    if arg.save and not arg.expire:
-        arg.write(arg.model_name)
     print(arg)
 
     seed_everything(arg.random_seed)
+
+    trainer = TrainerSEWG(arg)
+
+    if arg.save and not arg.expire:
+        arg.write(arg.model_name)
 
     # 加载用于训练语音增强模型的数据集 x: (B, L, C)  y: (B L C)
     train_dataset, valid_dataset, test_dataset = load_dataset_se("wav_train_se.list", arg.spilt_rate,
@@ -398,8 +395,6 @@ if __name__ == "__main__":
     model_se = load_pretrained_model(path_se)
     # model_se = load_se_model(arg)
     model_qn = load_pretrained_model(path_qn)
-
-    trainer = TrainerSEWG(arg)
 
     model_se = trainer.train(model_se, model_qn, train_dataset=train_dataset, valid_dataset=valid_dataset)
     trainer.test(test_dataset=test_dataset, model=model_se, model_qn=model_qn, q_len=200)
