@@ -5,6 +5,7 @@ cnn_feature: 64
 cnn_filter: 128
 delta_loss: 0.0002
 dropout: 0.3
+enableFrame: false
 enable_frame: true
 epochs: 35
 expire: false
@@ -18,11 +19,11 @@ load_weight: false
 lr: 0.0005
 mask_target: null
 model2_type: null
-model_name: lstmA_cp20240528_224641
-model_type: lstmA
+model_name: cnnA_cp20240528_232103
+model_type: cnnA
 normalize_output: true
-now_time: '20240528_224641'
-optimizer_type: 3
+now_time: '20240528_232103'
+optimizer_type: 1
 patience: 5
 qn_compress: true
 random_seed: 34

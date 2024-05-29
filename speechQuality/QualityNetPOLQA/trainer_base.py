@@ -41,7 +41,6 @@ class TrainerBase(abc.ABC):
         self.iteration = args.iteration
         self.iter_step = args.iter_step
         self.save_model_step = args.save_model_step
-        self.qn_compress = args.qn_compress
         self.logging = get_logging("log.txt")
         if args.save:
             self.check_dir()
@@ -53,8 +52,8 @@ class TrainerBase(abc.ABC):
             return True
         if "dpcrn" in arg.model_name and arg.se_input_type != 2:
             return True
-        if "dpcrn" in arg.model_name and arg.optimizer_type != 1:
-            return True
+        # if "dpcrn" in arg.model_name and arg.optimizer_type != 1:
+        #     return True
         if "lstm_se" in arg.model_name and arg.optimizer_type != 3:
             return True
         print(f"optimizer type is {arg.optimizer_type}")

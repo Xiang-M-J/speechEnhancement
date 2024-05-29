@@ -47,14 +47,28 @@ def Sp_and_phase(path, fft_size=512, hop_size=256, Noisy=False, compress=False):
     return NLp, phase
 
 
+def path2Spec(path, fft_size=512, hop_size=256, input_type=1):
+    wav, fs = preprocess(path)
+    feat_x = torch.stft(wav, n_fft=fft_size, hop_length=hop_size, win_length=fft_size,
+                        window=torch.hann_window(fft_size), return_complex=True).T
+    feat_x, phase_x = torch.abs(feat_x), torch.angle(feat_x)
+    if input_type == 1:
+        feat_x = torch.sqrt(feat_x)  # 压缩幅度
+    elif input_type == 2:
+        # 用于 dpcrn
+        feat_x = torch.sqrt(feat_x)
+        feat_x = torch.stack((feat_x * torch.cos(phase_x), feat_x * torch.sin(phase_x)), dim=0)
+    return feat_x, phase_x
+
+
 class DNSPOLQADataset(Dataset):
-    def __init__(self, wav_files: list[str], fft_size: int = 512, hop_size: int = 256,
-                 qn_compress=False, return_wav=False):
+    def __init__(self, wav_files: list[str], fft_size: int = 512, hop_size: int = 256, return_wav=False, input_type=1):
         super(DNSPOLQADataset, self).__init__()
         self.fft_size = fft_size
         self.hop_size = hop_size
         self.return_wav = return_wav
-        self.qn_compress = qn_compress
+        self.input_type = input_type
+
         self.wav = []
         self.polqa = []
         for wav_file in wav_files:
@@ -69,7 +83,7 @@ class DNSPOLQADataset(Dataset):
             noisy_LP, fs = torchaudio.load(wav)
             noisy_LP = noisy_LP / torch.max(torch.abs(noisy_LP))
         else:
-            noisy_LP, _ = Sp_and_phase(wav, self.fft_size, self.hop_size, False, self.qn_compress)
+            noisy_LP, _ = path2Spec(wav, self.fft_size, self.hop_size, self.input_type)
         noisy_LP = noisy_LP.to(device)
         return noisy_LP, [polqa, polqa * torch.ones([noisy_LP.shape[0]], dtype=torch.float32, device=device)]
 
@@ -105,53 +119,6 @@ class DNSDataset(Dataset):
 
     def __len__(self):
         return len(self.noise_path)
-
-
-class CalQuality:
-    def __init__(self, fs=48000, batch=True):
-        super().__init__()
-        self.resample = Resample(fs, 16000)
-        self.batch = batch
-        self.fs = fs
-
-    def cal_pesq(self, deg, ref):
-        if deg.shape != ref.shape:
-            raise ValueError("deg audio and ref audio must be same shape")
-        deg_16k = self.resample(deg)
-        ref_16k = self.resample(ref)
-
-        if self.batch:
-            p = pesq.pesq_batch(16000, ref_16k.numpy(), deg_16k.numpy(), mode="wb", n_processor=4)
-            return p
-        else:
-            p = pesq.pesq(16000, ref_16k.numpy(), deg_16k.numpy())
-            return p
-
-    def cal_stoi(self, deg, ref):
-        if deg.shape != ref.shape:
-            raise ValueError("deg audio and ref audio must be same shape")
-        if self.batch:
-            s = []
-            for i in range(deg.shape[0]):
-                s_ = pystoi.stoi(ref[i, :], deg[i, :], self.fs)
-                s.append(s_)
-            return s
-        else:
-            s = pystoi.stoi(ref, deg, self.fs)
-            return s
-
-    def cal_polqa(self, deg, ref):
-        raise NotImplementedError
-
-    def __call__(self, deg: torch.Tensor, ref: torch.Tensor):
-        """
-        deg: (N, L) or (L,)
-        ref: (N, L) or (L,)
-        return: pesq, stoi
-        """
-        p = self.cal_pesq(deg, ref)
-        s = self.cal_stoi(deg.numpy(), ref.numpy())
-        return p, s
 
 
 class CalSigmos:
@@ -240,16 +207,6 @@ def back_magnitude_spectrum(x, mask, mask_target, input_type):
             raise NotImplementedError
         mag = torch.pow(torch.norm(mask, dim=1), 2)
         return mag
-
-
-def predict_pesq_batch(deg_feat, deg_phase, ref_feat, ref_phase, fft_size, hop_size, win_size):
-    """
-    feat or phase: B C L
-    """
-    deg_wav = spec2wav(deg_feat, deg_phase, fft_size, hop_size, win_size)
-    ref_wav = spec2wav(ref_feat, ref_phase, fft_size, hop_size, win_size)
-    mos = pesq.pesq_batch(48000, ref_wav, deg_wav, mode="wb")
-    return mos
 
 
 def accurate_num_cal(y_pred, y_true, step):
@@ -410,7 +367,7 @@ def apply_SE_Loss(x, y, y_pred, loss_fn, mask_target, input_type):
             x_mag = get_mag(x, 1)
             y_mag = get_mag(y, 1)
             n_mag = x_mag - y_mag
-            return loss_fn(y_pred * torch.sqrt(torch.add(torch.pow(y_mag, 2), torch.pow(n_mag, 2))+1e-6), y_mag)
+            return loss_fn(y_pred * torch.sqrt(torch.add(torch.pow(y_mag, 2), torch.pow(n_mag, 2)) + 1e-6), y_mag)
         elif input_type == 2:
             raise NotImplementedError
     else:
@@ -469,6 +426,7 @@ def cal_QN_input_compress(x, y, y_pred, mask_target, input_type):
             raise NotImplementedError
     else:
         raise NotImplementedError
+
 
 def get_mag(x, input_type):
     if input_type == 1:

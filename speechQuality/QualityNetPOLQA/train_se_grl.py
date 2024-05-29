@@ -122,7 +122,7 @@ class TrainerGRL(TrainerBase):
                     dummy_input = torch.rand(self.args.batch_size, 2, 128, self.args.fft_size // 2 + 1).to(device)
                 else:
                     dummy_input = torch.rand(self.args.batch_size, 128, self.args.fft_size // 2 + 1).to(device)
-                if self.args.model_type == "lstmA":
+                if "lstmA" in self.args.model_type:
                     pass
                 else:
                     self.writer.add_graph(model_se, dummy_input)
@@ -377,13 +377,14 @@ class TrainerGRL(TrainerBase):
 
 
 if __name__ == "__main__":
-    path_se = r"models\lstm_se20240521_173158\final.pt"
+    # path_se = r"models\lstm_se20240521_173158\final.pt"
+    path_se = r"models\dpcrn_se20240518_224558\final.pt"
     # path_qn = r"models\hasa20240523_102833\final.pt"
     path_qn = r"models\hasa_cp20240527_001840\final.pt"
 
     # arg = Args("dpcrn_qse", model_name="dpcrn_se20240518_224558", model2_type="cnn")
     # arg = Args("lstm", task_type="_wgan", model2_type="hasa")
-    arg = Args("lstm", "_grl", "hasa", qn_compress=True, normalize_output=True)
+    arg = Args("dpcrn", "_grl", "hasa", qn_compress=True, normalize_output=True)
     arg.epochs = 15
     arg.batch_size = 8
     arg.save = False
@@ -391,14 +392,16 @@ if __name__ == "__main__":
 
     arg.delta_loss = 2e-4
 
+    # arg.se_input_type = 1
+
+
     arg.iteration = 2 * 72000 // arg.batch_size
-    arg.iter_step = 25
+    arg.iter_step = 50
     arg.step_size = 25
 
     if arg.model2_type is None:
         raise ValueError("model qn type cannot be none")
 
-    arg.se_input_type = 1
 
     # 训练 CNN / tcn
     # arg.optimizer_type = 1

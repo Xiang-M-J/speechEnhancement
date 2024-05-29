@@ -5,8 +5,8 @@ import time
 import torch
 from sklearn.metrics import classification_report, confusion_matrix
 
-from models import QualityNet, Cnn, QualityNetAttn, QualityNetClassifier, CnnClass, Cnn2d, CnnAttn, HASANet, Cnn2, \
-    CANClass, CAN2dClass, LstmCANClass, LSTMAttn
+from models import HASANetStack, QualityNet, Cnn, QualityNetAttn, QualityNetClassifier, CnnClass, Cnn2d, CnnAttn, HASANet, Cnn2, \
+    CANClass, CAN2dClass, LstmCANClass, LSTMAttn, CnnMAttn
 from lstm import lstm_net
 from DPCRN import dpcrn
 from hubert import Hubert
@@ -23,7 +23,7 @@ dpi = 300
 forget_gate_bias = -3
 
 
-def load_dataset_qn(path, spilt_rate, fft_size=512, hop_size=256, return_wav=False, qn_compress=False):
+def load_dataset_qn(path, spilt_rate, fft_size=512, hop_size=256, return_wav=False, input_type=1):
     wav_list = ListRead(path)
     random.shuffle(wav_list)
 
@@ -36,9 +36,9 @@ def load_dataset_qn(path, spilt_rate, fft_size=512, hop_size=256, return_wav=Fal
 
     Test_list = wav_list[train_length + valid_length:]
 
-    train_dataset = DNSPOLQADataset(Train_list, fft_size, hop_size, qn_compress=qn_compress, return_wav=return_wav)
-    valid_dataset = DNSPOLQADataset(Valid_list, fft_size, hop_size, qn_compress=qn_compress, return_wav=return_wav)
-    test_dataset = DNSPOLQADataset(Test_list, fft_size, hop_size, qn_compress=qn_compress, return_wav=return_wav)
+    train_dataset = DNSPOLQADataset(Train_list, fft_size, hop_size, return_wav=return_wav, input_type=input_type)
+    valid_dataset = DNSPOLQADataset(Valid_list, fft_size, hop_size, return_wav=return_wav, input_type=input_type)
+    test_dataset = DNSPOLQADataset(Test_list, fft_size, hop_size, return_wav=return_wav, input_type=input_type)
     return train_dataset, valid_dataset, test_dataset
 
 
@@ -66,6 +66,17 @@ def load_dataset_se(path, spilt_rate, fft_size=512, hop_size=256, input_type=2):
                                input_type=input_type)
     test_dataset = DNSDataset(Test_list, fft_num=fft_size, win_shift=hop_size, win_size=fft_size, input_type=input_type)
     return train_dataset, valid_dataset, test_dataset
+
+
+def qn_type(input_type:int):
+    if input_type == 0:
+        return "_or"
+    elif input_type == 1:
+        return "_cp"
+    elif input_type == 2:
+        return "_st"
+    else:
+        raise ValueError(f"Input type {input_type} is not supported")
 
 
 class Args:
@@ -102,12 +113,12 @@ class Args:
                  cnn_feature=64,
                  focal_gamma=2,
                  normalize_output=False,
-                 input_type=2,
+                 se_input_type=2,
+                 qn_input_type=1,
                  mask_target=None,
                  iteration=10000,
                  iter_step=100,
                  save_model_step=10,
-                 qn_compress=None
                  ):
         """
         Args:
@@ -130,23 +141,23 @@ class Args:
             focal_gamma: focal loss 中的gamma
             model2_type: 第二个模型（qualityNet）的类型
             normalize_output: 归一化语音质量模型的输出
-            input_type: 语音增强模型的输入类型（1：lstm，只输入压缩过的幅度谱，2：dpcrn）
+            se_input_type: 语音增强模型的输入类型（1：lstm，只输入压缩过的幅度谱，2：dpcrn）
+            qn_input_type: 语音质量模型的输入类型 (0: 无压缩的幅度谱，1：有压缩的幅度谱，2：dpcrn的输入)
             task_type: 任务类型
             mask_target: 是否训练mask(IAM)
-            qn_compress: 训练语音质量模型的数据是否需要压缩幅度
         """
 
         # 基础参数
         if task_type == "_se":
             self.model_type = model_type + task_type + ("" if mask_target is None else ("_" + mask_target))
+        elif task_type == "_qn":
+            self.model_type = model_type + qn_type(qn_input_type) + task_type
         else:
             self.model_type = model_type + task_type
 
         if model_name is None:
             self.now_time = time.strftime('%Y%m%d_%H%M%S', time.localtime())
             model_name = self.model_type + ("" if model2_type is None else model2_type)
-            if qn_compress is not None:
-                model_name = model_name + "_cp" if qn_compress else ""
             self.model_name = model_name + self.now_time
         else:
             self.now_time = model_name[-15:]
@@ -166,7 +177,7 @@ class Args:
 
         # 语音质量模型
         self.normalize_output = normalize_output
-        self.qn_compress = qn_compress
+        self.qn_input_type = qn_input_type
 
         # 语音质量模型与语音增强模型
         self.iteration = iteration
@@ -174,7 +185,7 @@ class Args:
         self.save_model_step = save_model_step
 
         # 语音增强模型相关
-        self.se_input_type = input_type
+        self.se_input_type = se_input_type
         self.mask_target = mask_target
 
         # 损失函数相关
@@ -324,11 +335,11 @@ class EarlyStopping:
         else:
             self.patience2 = self.patience_
         self.last_val_loss = val_loss
-        if self.patience2 == 0:
+        if self.patience2 == 1:
             print(f"The validation loss continue increase in {self.patience_} iterations, stop train")
             print(f"The final validation loss is {val_loss}")
             return True
-        if self.patience == 0:
+        if self.patience == 1:
             print(f"The validation loss has not changed in {self.patience_} iterations, stop train")
             print(f"The final validation loss is {val_loss}")
             return True
@@ -406,39 +417,48 @@ class LoaderIterator:
         self.idx += 1
         return ret_value
 
+def get_model_type(full_model_type):
+    if "_" in full_model_type:
+        return full_model_type.split('_')[0]
+    else:
+        return full_model_type
 
 def load_qn_model(args: Args):
-    if args.model_type == "lstm":
+    model_type = get_model_type(args.model_type)
+    if model_type == "lstm":
         model = QualityNet(args.dropout)
-    elif args.model_type == "lstmA":
+    elif model_type == "lstmA":
         # model = QualityNetAttn(args.dropout)
         model = LSTMAttn(args.dropout)
-    elif args.model_type == "cnn":
+    elif model_type == "cnn":
         model = Cnn(args.cnn_filter, args.cnn_feature, args.dropout)
-    elif args.model_type == "hasa":
+    elif model_type == "hasa":
         model = HASANet()
-    elif args.model_type == "cnn2d":
+    elif model_type == "hasastack":
+        model = HASANetStack()
+    elif model_type == "cnn2d":
         model = Cnn2d()
-    elif args.model_type == "cn2n":
+    elif model_type == "cn2n":
         model = Cnn2()
-    elif args.model_type == "cnnA":
-        model = CnnAttn(args.cnn_filter, args.cnn_feature, args.dropout)
-    elif args.model_type == "canClass":
+    elif model_type == "cnnA":
+        # model = CnnAttn(args.cnn_filter, args.cnn_feature, args.dropout)
+        model = CnnMAttn()
+    elif model_type == "canClass":
         model = CANClass(args.cnn_filter, args.cnn_feature, args.score_step)
-    elif args.model_type == "can2dClass":
+    elif model_type == "can2dClass":
         model = CAN2dClass(args.score_class_num)
-    elif args.model_type == "lstmClass":
+    elif model_type == "lstmClass":
         model = QualityNetClassifier(args.dropout, args.score_step)
-    elif args.model_type == "lstmcanClass":
+    elif model_type == "lstmcanClass":
         model = LstmCANClass(args.dropout, args.score_class_num)
-    elif args.model_type == "cnnClass":
+    elif model_type == "cnnClass":
         model = CnnClass(args.dropout, args.score_step)
-    elif args.model_type == "hubert":
+    elif model_type == "hubert":
         model = Hubert()
     else:
         raise ValueError("Invalid model type")
 
-    if "lstm" in args.model_type:
+    if "lstm" in model_type:
         W = dict(model.lstm.named_parameters())
         bias_init = np.concatenate((np.zeros([100]), forget_gate_bias * np.ones([100]), np.zeros([200])))
 
@@ -460,22 +480,6 @@ def load_se_model(args: Args):
     return model
 
 
-class Max1ReLu(torch.autograd.Function):
-    @staticmethod
-    def forward(ctx, inp):
-        result = torch.where(inp < 0., torch.zeros_like(inp), inp)
-        result = torch.where(result > 1., torch.zeros_like(inp), result)
-        ctx.save_for_backward(result)
-        return result
-
-    @staticmethod
-    def backward(ctx, grad_output):
-        inp, = ctx.saved_tensors
-        mask = torch.torch.where(inp > 1.0, torch.zeros_like(inp), inp)
-        mask = torch.torch.where((mask < 1e-6), torch.zeros_like(inp), torch.ones_like(inp))
-        return grad_output * mask
-
-
 def report(y_true, y_pred):
     length = y_true.shape[1]
     r = classification_report(y_true, y_pred, target_names=np.arange(1, length + 1), output_dict=True)
@@ -495,11 +499,9 @@ def plot_matrix(cm, labels_name, title='混淆矩阵', normalize=False, result_p
     Args:
         cm: 计算出的混淆矩阵的值
         labels_name: 标签名
-        model_name: 保存的图片名
         title: 生成的混淆矩阵的标题
         normalize: True:显示百分比, False:显示个数
         result_path: 保存路径
-        best: 是否是最优模型的结果
 
     Returns: 图窗
 

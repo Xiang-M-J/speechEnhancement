@@ -354,19 +354,16 @@ class Trainer(TrainerBase):
 
 if __name__ == "__main__":
     # arg = Args("hasa", model_name="hasa20240522_173240")
-    arg = Args("lstmA", qn_compress=True)
+    arg = Args("hasa", task_type="_qn", qn_input_type=1)
     arg.epochs = 35
-    arg.batch_size = 64
-    arg.save = True
+    arg.batch_size = 32
+    arg.save = False
     arg.lr = 5e-4
     arg.step_size = 5
     arg.delta_loss = 2e-4
 
     # 用于 qualityNet
     arg.normalize_output = True
-
-    if arg.qn_compress is None:
-        raise ValueError("qn_compress can not be None")
 
     # 训练Hubert
     # arg.optimizer_type = 1
@@ -387,8 +384,9 @@ if __name__ == "__main__":
         arg.write(arg.model_name)
 
     # 加载用于预测polqa分数的数据集 x: (B, L, C), y1: (B,), y2: (B, L)
-    train_dataset, valid_dataset, test_dataset = load_dataset_qn("wav_train_qn.list", arg.spilt_rate,arg.fft_size,
-                                                                 arg.hop_size, return_wav=False, qn_compress=arg.qn_compress)
+    train_dataset, valid_dataset, test_dataset = load_dataset_qn("wav_train_qn_rs.list", arg.spilt_rate, arg.fft_size,
+                                                                 arg.hop_size, return_wav=False,
+                                                                 input_type=arg.qn_input_type)
 
     model = load_qn_model(arg)
     model = trainer.train(model, train_dataset=train_dataset, valid_dataset=valid_dataset)

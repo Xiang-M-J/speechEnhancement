@@ -262,6 +262,49 @@ class CnnAttn(nn.Module):
         return x
 
 
+class CnnMAttn(nn.Module):
+    def __init__(self,):
+        super(CnnMAttn, self).__init__()
+        self.prepare = nn.Sequential(
+            Rearrange("N L C -> N C L"),
+            nn.Conv1d(in_channels=257, out_channels=256, kernel_size=5),
+            nn.ELU(),
+        )
+        self.conv1 = nn.Sequential(
+            nn.Conv1d(in_channels=256, out_channels=256, kernel_size=2, stride=2),
+            nn.Conv1d(in_channels=256, out_channels=128, kernel_size=1, stride=1),
+            nn.BatchNorm1d(128),
+            nn.ReLU()
+        )
+        self.conv2 = nn.Sequential(
+            nn.Conv1d(in_channels=128, out_channels=128, kernel_size=2, stride=2),
+            nn.Conv1d(in_channels=128, out_channels=128, kernel_size=1, stride=1),
+            nn.BatchNorm1d(128),
+            nn.ReLU()
+        )
+
+        self.attn = nn.MultiheadAttention(128, 8, 0.1)
+        self.avg_linear = nn.Sequential(
+            nn.LayerNorm(128),
+            Rearrange("N L C -> N C L"),
+            nn.AdaptiveAvgPool1d(1),
+            nn.Flatten(),
+            nn.Linear(128, 50),
+            nn.Dropout(0.1),
+            nn.Linear(50, 1),
+            # nn.Sigmoid()
+        )
+
+    def forward(self, x):
+        x = self.prepare(x)
+        x = self.conv1(x)
+        x = self.conv2(x)
+        x = x.permute([0, 2, 1])
+        x, _ = self.attn(x, x, x)
+        x = self.avg_linear(x)
+        return x
+
+
 class CANBlock(nn.Module):
     def __init__(self, channel, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -486,17 +529,17 @@ class LSTMAttn(nn.Module):
     def __init__(self, dropout=0.3) -> None:
         super(LSTMAttn, self).__init__()
         self.lstm = nn.LSTM(257, 100, num_layers=1, bidirectional=True, dropout=0., batch_first=True)
-        self.linear1 = nn.Linear(200, 1)  # 2 * 100
-        
+        self.linear1 = nn.Linear(200, 50)  # 2 * 100
+        self.linear2 = nn.Linear(50, 1)
         self.pool = nn.AdaptiveAvgPool1d(1)
-        self.attn = nn.MultiheadAttention(200, 8, dropout=0.1)
+        self.attn = nn.MultiheadAttention(200, 4, dropout=0.1)
         self.ln = nn.LayerNorm(200)
 
     def forward(self, x):
         lstm_out, _ = self.lstm(x)
         lstm_out, attn = self.attn(lstm_out, lstm_out, lstm_out)
         lstm_out = self.ln(lstm_out)
-        Frame_score = ((self.linear1(lstm_out))).squeeze(-1)
+        Frame_score = (self.linear2(self.linear1(lstm_out))).squeeze(-1)
         Average_score = self.pool(Frame_score)
         return Frame_score, Average_score
 
@@ -567,6 +610,59 @@ class QualityNetClassifier(nn.Module):
         Average_score = self.pool(Frame_score)
         return Frame_score, Average_score
 
+
+class HASANetStack(nn.Module):
+    """
+    input_size: 257
+    hidden_size: 100
+    num_layers: 1
+    dropout: 0
+    linear_output: 128
+    act_fn: 'relu'
+    """
+
+    def __init__(self):
+        super(HASANetStack, self).__init__()
+        hidden_size = 100
+        num_layers = 1
+        dropout = 0.
+        linear_output = 128
+        self.blstm1 = nn.LSTM(input_size=257,
+                             hidden_size=hidden_size,
+                             num_layers=num_layers,
+                             dropout=dropout,
+                             bidirectional=True,
+                             batch_first=True)
+        self.blstm2 = nn.LSTM(input_size=257,
+                             hidden_size=hidden_size,
+                             num_layers=num_layers,
+                             dropout=dropout,
+                             bidirectional=True,
+                             batch_first=True)
+        self.linear1 = nn.Linear(hidden_size * 2, linear_output, bias=True)
+        self.act_fn = nn.ReLU()
+        self.dropout = nn.Dropout(p=0.3)
+        self.hasqiAtt_layer = nn.MultiheadAttention(linear_output, num_heads=8)
+        self.ln = nn.LayerNorm(linear_output)
+        self.hasqiframe_score = nn.Linear(linear_output, 1, bias=True)
+        # self.act = nn.LeakyReLU()
+        self.hasqiaverage_score = nn.AdaptiveAvgPool1d(1)
+
+    def forward(self, x):  # hl:(B,6)
+
+        out1, _ = self.blstm1(x)  # (B,T, 2*hidden)
+        out2, _ = self.blstm2(x)
+        out = out1 + out2
+        out = self.dropout(self.act_fn(self.linear1(out))).transpose(0, 1)  #(T_length, B,  128)
+        hasqi, _ = self.hasqiAtt_layer(out, out, out)
+        hasqi = hasqi.transpose(0, 1)  # (B, T_length, 128)
+        hasqi = self.ln(hasqi)
+        hasqi = self.hasqiframe_score(hasqi)  # (B, T_length, 1)
+        # hasqi = self.act(hasqi)  # pass a sigmoid
+        hasqi_fram = hasqi.permute(0, 2, 1)  # (B, 1, T_length)
+        hasqi_avg = self.hasqiaverage_score(hasqi_fram)  # (B,1,1)
+
+        return hasqi_fram, hasqi_avg.squeeze(1)  # (B, 1, T_length) (B,1)
 
 class HASANet(nn.Module):
     """

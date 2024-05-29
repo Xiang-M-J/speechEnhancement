@@ -98,10 +98,8 @@ class TrainerSE(TrainerBase):
                     dummy_input = torch.rand(4, 2, 128, self.args.fft_size // 2 + 1).to(device)
                 else:
                     dummy_input = torch.rand(4, 128, self.args.fft_size // 2 + 1).to(device)
-                if self.args.model_type == "lstmA":
-                    pass
-                else:
-                    self.writer.add_graph(model, dummy_input)
+                
+                self.writer.add_graph(model, dummy_input)
             except RuntimeError as e:
                 print(e)
 

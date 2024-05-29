@@ -344,7 +344,7 @@ class TrainerC(TrainerBase):
 
 
 if __name__ == "__main__":
-    arg = Args("cnnClass", qn_compress=False)
+    arg = Args("cnnClass", task_type="_qn")
     # arg = Args("can2dClass", model_name="can2dClass20240524_203611")
     # arg = Args("lstmcanClass", model_name="lstmcanClass20240524_185704")
 
@@ -357,8 +357,6 @@ if __name__ == "__main__":
     arg.cnn_filter = 128
     arg.cnn_feature = 64
 
-    if arg.qn_compress is None:
-        raise ValueError("qn_compress can not be None")
 
     # 用于 qualityNet
     arg.normalize_output = True
@@ -388,7 +386,7 @@ if __name__ == "__main__":
 
     # 加载用于预测polqa分数的数据集 x: (B, L, C), y1: (B,), y2: (B, L)
     train_dataset, valid_dataset, test_dataset = load_dataset_qn("wav_train_qn.list", arg.spilt_rate,
-                                                                 arg.fft_size, arg.hop_size, qn_compress=arg.qn_compress)
+                                                                 arg.fft_size, arg.hop_size)
 
     model = load_qn_model(arg)
     # model = load_pretrained_model(r"models\lstmcanClass20240524_185704\final.pt")
