@@ -12,7 +12,7 @@ from trainer_base import TrainerBase
 
 from losses import EDMLoss, AvgCrossEntropyLoss, NormMseLoss
 from trainer_utils import Args, EarlyStopping, Metric, plot_metric, load_qn_model, load_dataset_qn, confuseMatrix, \
-    plot_matrix, load_pretrained_model
+    plot_matrix, load_pretrained_model, log_model
 from utils import accurate_num_cal, oneHotToFloat, seed_everything
 
 device = torch.device('cuda') if torch.cuda.is_available() else torch.device('cpu')
@@ -33,24 +33,24 @@ class TrainerC(TrainerBase):
             loss1 = NormMseLoss()
         else:
             loss1 = nn.MSELoss()
-        # loss2 = EDMLoss(self.args.score_step, self.args.smooth)
-        loss2 = AvgCrossEntropyLoss(step=self.args.score_step)
+        loss2 = EDMLoss(self.args.score_step, self.args.smooth)
+        # loss2 = AvgCrossEntropyLoss(step=self.args.score_step)
 
         loss1.to(device=device)
         loss2.to(device=device)
         return [loss1, loss2]
 
     def train_epoch(self, model, x, y, loss_fns, optimizer):
-        # loss1 = loss_fns[0]
+        loss1 = loss_fns[0]
         loss2 = loss_fns[1]
 
         y1 = y[0]
         y2 = y[1]
         avg, c = model(x)
-        # l1 = loss1(avg.squeeze(-1), y1)
+        l1 = loss1(avg.squeeze(-1), y1)
         l2 = loss2(c, y1)
-        # loss = l1 + l2
-        loss = l2
+        loss = l1 + l2
+        # loss = l2
         loss.requires_grad_(True)
         accurate_num = accurate_num_cal(c, y1, self.args.score_step)
         optimizer.zero_grad()
@@ -62,20 +62,19 @@ class TrainerC(TrainerBase):
         """
         Return loss, predict score, true score, accuracy num
         """
-        # loss1 = loss_fns[0]
+        loss1 = loss_fns[0]
         loss2 = loss_fns[1]
         y1 = y[0]
         y2 = y[1]
         avg, c = model(x)
         accurate_num = accurate_num_cal(c, y1, self.args.score_step)
-        # l1 = loss1(avg.squeeze(-1), y1)
+        l1 = loss1(avg.squeeze(-1), y1)
         l2 = loss2(c, y1)
-        # loss = l1 + l2
-        loss = l2
+        loss = l1 + l2
+        # loss = l2
         predict_cls = oneHotToFloat(c.cpu().detach().numpy(), self.args.score_step)
         predict_avg = avg.squeeze(-1).sigmoid().cpu().detach().numpy()
         if self.args.normalize_output:
-            
             predict_avg = predict_avg * 4.0 + 1.0
         # return loss.item(), (predict_avg + predict_cls)/2, y1.cpu().detach().numpy(), accurate_num
         return loss.item(), predict_cls, y1.cpu().detach().numpy(), accurate_num
@@ -119,11 +118,14 @@ class TrainerC(TrainerBase):
         if self.args.save:
             self.writer.add_text("模型名", self.args.model_name)
             self.writer.add_text('超参数', str(self.args))
+            info = log_model(model, self.image_path)
             try:
                 dummy_input = torch.rand(self.args.batch_size, 256, self.args.fft_size // 2 + 1).to(device)
                 self.writer.add_graph(model, dummy_input)
             except Exception as e:
-                print(e)
+                print("can not save graph")
+                self.writer.add_text("model info", info)
+                
 
         plt.ion()
         start_time = time.time()
@@ -143,6 +145,7 @@ class TrainerC(TrainerBase):
                     train_acc_num += num
                     loop_train.set_description_str(f'Training [{epoch + 1}/{self.epochs}]')
                     loop_train.set_postfix_str("step: {}/{} loss: {:.4f}".format(batch_idx, train_step, loss))
+                    # break
 
                 model.eval()
                 with torch.no_grad():
@@ -344,16 +347,18 @@ class TrainerC(TrainerBase):
 
 
 if __name__ == "__main__":
-    arg = Args("cnnClass", task_type="_qn")
+    # arg = Args("can2dClass", task_type="_qn", qn_input_type=1)
+    arg = Args("hasaClass", task_type="_qn", qn_input_type=1)
+    # arg = Args("hasaClass", task_type="_qn", qn_input_type=1, model_name="hasaClass_cp_qn20240530_001033")
     # arg = Args("can2dClass", model_name="can2dClass20240524_203611")
     # arg = Args("lstmcanClass", model_name="lstmcanClass20240524_185704")
 
     arg.epochs = 35
-    arg.batch_size = 32
+    arg.batch_size = 16
     arg.save = True
     arg.lr = 5e-4
     arg.step_size = 5
-    arg.delta_loss = 1e-3
+    arg.delta_loss = 2e-4
     arg.cnn_filter = 128
     arg.cnn_feature = 64
 
@@ -366,7 +371,7 @@ if __name__ == "__main__":
     # arg.enable_frame = False
 
     # 训练 CNN / tcn
-    arg.optimizer_type = 1
+    # arg.optimizer_type = 1
     # arg.enableFrame = False
 
     # 训练分类模型
@@ -385,11 +390,11 @@ if __name__ == "__main__":
         arg.write(arg.model_name)
 
     # 加载用于预测polqa分数的数据集 x: (B, L, C), y1: (B,), y2: (B, L)
-    train_dataset, valid_dataset, test_dataset = load_dataset_qn("wav_train_qn.list", arg.spilt_rate,
-                                                                 arg.fft_size, arg.hop_size)
+    train_dataset, valid_dataset, test_dataset = load_dataset_qn("wav_train_qn_rs2.list", arg.spilt_rate,
+                                                                 arg.fft_size, arg.hop_size, input_type=arg.qn_input_type)
 
     model = load_qn_model(arg)
-    # model = load_pretrained_model(r"models\lstmcanClass20240524_185704\final.pt")
+    # model = load_pretrained_model(r"models\hasaClass_cp_qn20240530_001033\final.pt")
 
     model = trainer.train(model, train_dataset=train_dataset, valid_dataset=valid_dataset)
     trainer.test(test_dataset=test_dataset, model=model)

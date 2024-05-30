@@ -10,7 +10,7 @@ from tqdm import tqdm
 
 from losses import CriticLoss, QNLoss
 from trainer_base import TrainerBase
-from trainer_utils import Args, EarlyStopping, LoaderIterator, Metric, plot_metric, plot_quantity, \
+from trainer_utils import Args, EarlyStopping, LoaderIterator, Metric, plot_metric, log_model, plot_quantity, \
     load_pretrained_model, load_dataset_se, load_se_model
 from utils import cal_QN_input, cal_QN_input_compress, spec2wav, CalSigmos, seed_everything, GRL
 
@@ -24,7 +24,7 @@ class TrainerGRL(TrainerBase):
 
     def __init__(self, args: Args):
         super(TrainerGRL, self).__init__(args)
-        if args.qn_compress:
+        if args.qn_input_type == 1:
             self.cal_qn_input = cal_QN_input_compress
         else:
             self.cal_qn_input = cal_QN_input
@@ -40,8 +40,8 @@ class TrainerGRL(TrainerBase):
         y_pred = model(x)
         y_pred = GRL.apply(y_pred, 1)
         mag_pred, mag_true = self.cal_qn_input(x, y, y_pred, self.mask_target, self.se_input_type)
-        
-        loss = loss_fn(model_qn, mag_pred)  
+
+        loss = loss_fn(model_qn, mag_pred)
         # 对于 model_qn 需要减小损失，等价于使mean(score)减小，即让model_qn的评分标准更加严格
         # 而对于 model_se 需要减小的损失为 -loss，即让评分更高，即训练出性能更好的增强模型
 
@@ -65,7 +65,7 @@ class TrainerGRL(TrainerBase):
         y_pred = model(x)
         mag_pred, mag_true = self.cal_qn_input(x, y, y_pred, self.mask_target, self.se_input_type)
         loss = -loss_fn(model_qn, mag_pred)
-        
+
         return loss.item(), y_pred.cpu().detach()
 
     def freeze_parameters(self, model: nn.Module, names=None):
@@ -110,7 +110,9 @@ class TrainerGRL(TrainerBase):
         # loss_fn = QNLoss(isClass=("Class" in self.args.model2_type), step=self.args.score_step).to(device)
         loss_fn, loss_fn2 = self.get_loss_fn()
 
-        optimizer = torch.optim.RMSprop([{"params": model_se.parameters(), "lr": self.lr}, {"params": model_qn.parameters(), "lr": self.lr}], lr=self.args.lr)
+        optimizer = torch.optim.RMSprop(
+            [{"params": model_se.parameters(), "lr": self.lr}, {"params": model_qn.parameters(), "lr": self.lr}],
+            lr=self.args.lr)
 
         scheduler = self.get_scheduler(optimizer, arg=self.args)
         # 保存一些信息
@@ -126,6 +128,7 @@ class TrainerGRL(TrainerBase):
                     pass
                 else:
                     self.writer.add_graph(model_se, dummy_input)
+
             except RuntimeError as e:
                 print(e)
 
@@ -333,7 +336,7 @@ class TrainerGRL(TrainerBase):
             mean_mos_str += ":{:.4f}\t".format(np.mean(metric.mos_48k[name]))
         print(mean_mos_str)
         self.logging.info(mean_mos_str)
-        
+
         self.logging.info("test loss: {:.4f} \n".format(metric.test_loss))
 
         if self.args.save:
@@ -394,14 +397,12 @@ if __name__ == "__main__":
 
     # arg.se_input_type = 1
 
-
     arg.iteration = 2 * 72000 // arg.batch_size
     arg.iter_step = 50
     arg.step_size = 25
 
     if arg.model2_type is None:
         raise ValueError("model qn type cannot be none")
-
 
     # 训练 CNN / tcn
     # arg.optimizer_type = 1

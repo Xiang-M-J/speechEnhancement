@@ -4,9 +4,10 @@ import time
 
 import torch
 from sklearn.metrics import classification_report, confusion_matrix
+import torchinfo
 
-from models import HASANetStack, QualityNet, Cnn, QualityNetAttn, QualityNetClassifier, CnnClass, Cnn2d, CnnAttn, HASANet, Cnn2, \
-    CANClass, CAN2dClass, LstmCANClass, LSTMAttn, CnnMAttn
+from models import HASANetStack, Cnn, LstmClassifier, CnnClass, Cnn2d, \
+    HASANet, CAN2dClass, LstmCANClass, CnnMAttn, HASAClassifier
 from lstm import lstm_net
 from DPCRN import dpcrn
 from hubert import Hubert
@@ -68,7 +69,7 @@ def load_dataset_se(path, spilt_rate, fft_size=512, hop_size=256, input_type=2):
     return train_dataset, valid_dataset, test_dataset
 
 
-def qn_type(input_type:int):
+def qn_type(input_type: int):
     if input_type == 0:
         return "_or"
     elif input_type == 1:
@@ -417,56 +418,50 @@ class LoaderIterator:
         self.idx += 1
         return ret_value
 
+
 def get_model_type(full_model_type):
     if "_" in full_model_type:
         return full_model_type.split('_')[0]
     else:
         return full_model_type
 
+
 def load_qn_model(args: Args):
     model_type = get_model_type(args.model_type)
-    if model_type == "lstm":
-        model = QualityNet(args.dropout)
-    elif model_type == "lstmA":
-        # model = QualityNetAttn(args.dropout)
-        model = LSTMAttn(args.dropout)
-    elif model_type == "cnn":
+    if model_type == "cnn":
         model = Cnn(args.cnn_filter, args.cnn_feature, args.dropout)
     elif model_type == "hasa":
         model = HASANet()
-    elif model_type == "hasastack":
+    elif model_type == "hasaStack":
         model = HASANetStack()
     elif model_type == "cnn2d":
         model = Cnn2d()
-    elif model_type == "cn2n":
-        model = Cnn2()
     elif model_type == "cnnA":
-        # model = CnnAttn(args.cnn_filter, args.cnn_feature, args.dropout)
         model = CnnMAttn()
-    elif model_type == "canClass":
-        model = CANClass(args.cnn_filter, args.cnn_feature, args.score_step)
     elif model_type == "can2dClass":
         model = CAN2dClass(args.score_class_num)
     elif model_type == "lstmClass":
-        model = QualityNetClassifier(args.dropout, args.score_step)
+        model = LstmClassifier(args.dropout, args.score_class_num)
     elif model_type == "lstmcanClass":
         model = LstmCANClass(args.dropout, args.score_class_num)
+    elif model_type == "hasaClass":
+        model = HASAClassifier(args.score_class_num)
     elif model_type == "cnnClass":
-        model = CnnClass(args.dropout, args.score_step)
+        model = CnnClass(args.score_step)
     elif model_type == "hubert":
         model = Hubert()
     else:
         raise ValueError("Invalid model type")
 
-    if "lstm" in model_type:
-        W = dict(model.lstm.named_parameters())
-        bias_init = np.concatenate((np.zeros([100]), forget_gate_bias * np.ones([100]), np.zeros([200])))
-
-        for name, wight in model.lstm.named_parameters():
-            if "bias" in name:
-                W[name] = torch.tensor(bias_init, dtype=torch.float32)
-
-        model.lstm.load_state_dict(W)
+    # if "lstm" in model_type:
+    #     W = dict(model.lstm.named_parameters())
+    #     bias_init = np.concatenate((np.zeros([100]), forget_gate_bias * np.ones([100]), np.zeros([200])))
+    #
+    #     for name, wight in model.lstm.named_parameters():
+    #         if "bias" in name:
+    #             W[name] = torch.tensor(bias_init, dtype=torch.float32)
+    #
+    #     model.lstm.load_state_dict(W)
     return model
 
 
@@ -551,6 +546,32 @@ def plot_matrix(cm, labels_name, title='混淆矩阵', normalize=False, result_p
     plt.savefig(img_path, dpi=dpi)
 
     return fig
+
+
+def log_model(model, result_path):
+    summary = torchinfo.summary(model, col_names=("output_size", "num_params", "kernel_size"),
+                                row_settings=("depth", "ascii_only"), input_size=(4, 512, 257))
+    text = str(summary)
+    with open(os.path.join(result_path, "model.txt"), "w", encoding="utf-8") as f:
+        f.write(text)
+    return text
+
+
+# def plot_model(model, result_path):
+#     summary = torchinfo.summary(model, col_names=("output_size", "num_params", "kernel_size"), row_settings=("depth","ascii_only"), input_size=(4, 512, 257))
+#     text = str(summary)
+#     width = summary.formatting.col_width * len(summary.formatting.col_names) * 16
+#     height = len(summary.summary_list) * 24 + 100
+#     im = Image.new("RGB", (width, height), (255, 255, 255))
+#     dr = ImageDraw.Draw(im)
+#     font = ImageFont.truetype(os.path.join("C:/Windows/fonts", "consola.ttf"), 16)
+
+#     dr.text((10, 5), text, font=font,  fill="#000000")
+#     fig = plt.figure(figsize=(width/200, height/200), dpi=300)
+#     with open(os.path.join(result_path, "model.txt"), "w", encoding="utf-8") as f:
+#         f.write(text)
+#     plt.imshow(im)
+#     return fig
 
 
 if __name__ == '__main__':

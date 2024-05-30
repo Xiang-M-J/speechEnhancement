@@ -1,12 +1,9 @@
 import random
 import logging
 import numpy as np
-import pystoi
 import torch
 import torchaudio
 from torch.utils.data import Dataset
-import pesq
-from torchaudio.transforms import Resample
 from torch.utils.tensorboard import SummaryWriter
 from scipy.special import softmax
 
@@ -235,7 +232,9 @@ def floatTensorToOnehot(x, step, s=False):
     x_i[x_i <= 0] = 0
     x_i = x_i // int(step * 100)
 
-    x_onehot = torch.nn.functional.one_hot(x_i.long(), int(4 / step)).squeeze(-2)
+    x_onehot = torch.nn.functional.one_hot(x_i.long(), int(4 / step))
+
+    
     if s:
         if len(x_onehot.shape) == 2:
             return smoothLabel(x_onehot)

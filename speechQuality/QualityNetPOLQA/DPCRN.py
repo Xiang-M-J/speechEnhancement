@@ -2,19 +2,20 @@ import torch
 import torch.nn as nn
 
 
+def get_freq_len(fft_size):
+    freq_len = fft_size // 2 + 1
+    for i in range(5):
+        freq_len = (freq_len - 3) // 2 + 1
+    return freq_len
+
+
 class dpcrn(nn.Module):
     def __init__(self, fft_size=512):
         super(dpcrn, self).__init__()
-        freq_len = self.get_freq_len(fft_size)
+        freq_len = get_freq_len(fft_size)
         self.en = Encoder()
         self.dprnn = DPRNN(freq_len=freq_len)
         self.de = Decoder()
-
-    def get_freq_len(self, fft_size):
-        freq_len = fft_size // 2 + 1
-        for i in range(5):
-            freq_len = (freq_len - 3) // 2 + 1
-        return freq_len
 
     def forward(self, inpt):
         x = inpt
@@ -52,8 +53,8 @@ class DPRNN(nn.Module):
         self.ln2 = nn.LayerNorm([freq_len, 128])
 
     def forward(self, x):
-        out = x  #(B,C,T,F)
-        ## intra
+        out = x  # (B,C,T,F)
+        # intra
         # inp shape (B,C,T,F) --> (B,T,F,C)
         x = x.permute(0, 2, 3, 1).contiguous()
         batch_size, chan_len, seq_len, freq_len = out.shape
@@ -66,9 +67,9 @@ class DPRNN(nn.Module):
         # (B*T,F,C) --> (B,T,F,C)
         out = out.view(batch_size, -1, freq_len, chan_len)
         out = self.ln1(out)
-        intra_out = out + x  #(B,T,F,C)
+        intra_out = out + x  # (B,T,F,C)
 
-        ##inter
+        # inter
         # inp shape (B,T,F, C) --> (B * F, T, C)
         out = intra_out.permute(0, 2, 1, 3).contiguous()
         out = out.view(-1, seq_len, chan_len)
@@ -79,7 +80,7 @@ class DPRNN(nn.Module):
         out = out.view(batch_size, -1, seq_len, chan_len)
         out = out.permute(0, 2, 1, 3).contiguous()
         out = self.ln2(out)
-        out = out + intra_out  #(B,T,F,C)
+        out = out + intra_out  # (B,T,F,C)
 
         # output shape (B,T,F,C) --> (B,C,T,F)
         out = out.permute(0, 3, 1, 2).contiguous()

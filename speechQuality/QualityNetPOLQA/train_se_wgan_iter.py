@@ -24,7 +24,7 @@ class TrainerSEWG(TrainerBase):
 
     def __init__(self, args: Args):
         super(TrainerSEWG, self).__init__(args)
-        if args.qn_compress:
+        if args.qn_input_type == 1:
             self.cal_qn_input = cal_QN_input_compress
         else:
             self.cal_qn_input = cal_QN_input
@@ -401,7 +401,7 @@ if __name__ == "__main__":
 
     # arg = Args("dpcrn_qse", model_name="dpcrn_se20240518_224558", model2_type="cnn")
     # arg = Args("lstm", task_type="_wgan", model2_type="hasa")
-    arg = Args("dpcrn", "_wgan", "hasa", qn_compress=True, normalize_output=True)
+    arg = Args("dpcrn", "_wgan", "hasa", qn_input_type=1, normalize_output=True)
     arg.epochs = 15
     arg.batch_size = 8
     arg.save = False

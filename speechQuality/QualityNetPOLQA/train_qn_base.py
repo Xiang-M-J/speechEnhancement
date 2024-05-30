@@ -10,7 +10,7 @@ from torch.utils.data import dataloader
 from tqdm import tqdm
 
 from trainer_utils import (Args, EarlyStopping, Metric, plot_metric, load_qn_model, load_dataset_qn,
-                           load_pretrained_model)
+                           load_pretrained_model, log_model)
 from losses import FrameMse, FrameMse2, FrameMseNorm
 from utils import normalize, seed_everything, denormalize
 from trainer_base import TrainerBase
@@ -28,13 +28,13 @@ class Trainer(TrainerBase):
 
     def get_loss_fn(self):
         loss1 = nn.MSELoss()
-        if "hasa" in self.args.model_type:
-            loss2 = FrameMse2(self.args.enable_frame)
+        # if "hasa" in self.args.model_type:
+        #     loss2 = FrameMse2(self.args.enable_frame)
+        # else:
+        if self.args.normalize_output:
+            loss2 = FrameMseNorm(self.args.enable_frame)
         else:
-            if self.args.normalize_output:
-                loss2 = FrameMseNorm(self.args.enable_frame)
-            else:
-                loss2 = FrameMse(self.args.enable_frame)
+            loss2 = FrameMse(self.args.enable_frame)
         loss1.to(device=device)
         loss2.to(device=device)
         return loss1, loss2
@@ -121,6 +121,7 @@ class Trainer(TrainerBase):
         if self.args.save:
             self.writer.add_text("模型名", self.args.model_name)
             self.writer.add_text('超参数', str(self.args))
+            info = log_model(model, self.image_path)
             try:
                 if "hubert" in self.args.model_type:
                     dummy_input = torch.rand(4, 1, 48000)
@@ -130,8 +131,10 @@ class Trainer(TrainerBase):
                     pass
                 else:
                     self.writer.add_graph(model, dummy_input)
-            except RuntimeError as e:
-                print(e)
+            except Exception as e:
+                print("can not save graph")
+                self.writer.add_text("model info", info)
+
 
         # 设置损失函数和模型
         loss1, loss2 = self.get_loss_fn()
@@ -318,6 +321,7 @@ class Trainer(TrainerBase):
             self.writer.add_figure("predict score", fig)
             np.save(self.data_path + "test_metric.npy", metric.items())
         else:
+            plt.clf()
             plt.scatter(POLQA_True, POLQA_Predict, s=6)
             plt.show()
             plt.pause(2)
@@ -354,10 +358,10 @@ class Trainer(TrainerBase):
 
 if __name__ == "__main__":
     # arg = Args("hasa", model_name="hasa20240522_173240")
-    arg = Args("hasa", task_type="_qn", qn_input_type=1)
+    arg = Args("cnnA", task_type="_qn", qn_input_type=1)
     arg.epochs = 35
-    arg.batch_size = 32
-    arg.save = False
+    arg.batch_size = 64
+    arg.save = True
     arg.lr = 5e-4
     arg.step_size = 5
     arg.delta_loss = 2e-4
@@ -370,7 +374,7 @@ if __name__ == "__main__":
     # arg.enable_frame = False
 
     # 训练 CNN / tcn
-    # arg.optimizer_type = 1
+    arg.optimizer_type = 1
     # arg.enableFrame = False
 
     print(arg)
@@ -384,7 +388,7 @@ if __name__ == "__main__":
         arg.write(arg.model_name)
 
     # 加载用于预测polqa分数的数据集 x: (B, L, C), y1: (B,), y2: (B, L)
-    train_dataset, valid_dataset, test_dataset = load_dataset_qn("wav_train_qn_rs.list", arg.spilt_rate, arg.fft_size,
+    train_dataset, valid_dataset, test_dataset = load_dataset_qn("wav_train_qn_rs2.list", arg.spilt_rate, arg.fft_size,
                                                                  arg.hop_size, return_wav=False,
                                                                  input_type=arg.qn_input_type)
 
