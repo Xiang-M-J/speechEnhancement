@@ -78,6 +78,7 @@ class EDMLoss(nn.Module):
         cdf_target = torch.cumsum(p_target_, dim=1)
         cdf_estimate = torch.cumsum(p_estimate_, dim=1)
         cdf_diff = cdf_estimate - cdf_target
+        # emd = torch.sqrt(torch.mean(torch.pow(torch.abs(cdf_diff), 2), dim=-1)+1e-6)
         emd = torch.mean(torch.pow(torch.abs(cdf_diff), 2), dim=-1)
         return emd.mean()
 

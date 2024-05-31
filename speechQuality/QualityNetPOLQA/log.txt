@@ -208,12 +208,6 @@ test loss: -0.5051
 2024-05-29 16:48:56,436 train_qn_base.py lstmA_cp_qn20240529_153437	74.30
 2024-05-29 16:48:56,437 train_qn_base.py train loss: 0.0117, valid loss: 0.0149
 2024-05-29 16:49:31,240 train_qn_base.py test loss: 0.0135, mse: 0.0101,  lcc: 0.9425, srcc: 0.9267
-2024-05-29 17:05:47,448 train_qn_base.py hasa_cp_qn20240529_165731	8.26
-2024-05-29 17:05:47,449 train_qn_base.py train loss: 0.0478, valid loss: 0.0559
-2024-05-29 17:06:11,959 train_qn_base.py test loss: 0.0370, mse: 0.0145,  lcc: 0.9188, srcc: 0.8979
-2024-05-29 17:15:38,908 train_qn_base.py hasa_cp_qn20240529_170826	7.20
-2024-05-29 17:15:38,909 train_qn_base.py train loss: 0.0517, valid loss: 0.0588
-2024-05-29 17:15:56,128 train_qn_base.py test loss: 0.0463, mse: 0.0168,  lcc: 0.9076, srcc: 0.8950
 2024-05-29 17:29:01,194 train_qn_base.py cnn_cp_qn20240529_153653	112.12
 2024-05-29 17:29:01,194 train_qn_base.py train loss: 0.0069, valid loss: 0.0113
 2024-05-29 17:29:59,181 train_qn_base.py test loss: 0.0107, mse: 0.0107,  lcc: 0.9412, srcc: 0.9242
@@ -254,8 +248,6 @@ test loss: -0.5051
 2024-05-30 14:00:14,994 train_qn_classifier.py hasaClass_cp_qn20240530_124441	75.54
 2024-05-30 14:00:14,994 train_qn_classifier.py train loss: 0.0400, valid loss: 0.1398 train acc: 34.8808, valid acc: 29.9952
 2024-05-30 14:00:27,483 train_qn_classifier.py test loss: 0.1477, mse: 0.1872,  lcc: 0.9364, srcc: 0.9280
-2024-05-30 14:24:04,530 train_qn_base.py cnn2MAttn_cp_qn20240530_142354	0.16
-2024-05-30 14:28:33,562 train_qn_base.py cnn2MAttn_cp_qn20240530_142811	0.37
 2024-05-30 15:00:46,767 train_qn_base.py cnn2MAttn_cp_qn20240530_142919	31.44
 2024-05-30 15:00:46,768 train_qn_base.py train loss: 0.0070, valid loss: 0.0125
 2024-05-30 15:00:59,772 train_qn_base.py test loss: 0.0133, mse: 0.0133,  lcc: 0.9246, srcc: 0.9185
@@ -266,3 +258,65 @@ test loss: -0.5051
 2024-05-30 15:54:51,352 train_qn_base.py train loss: 0.0044, valid loss: 0.0144
 2024-05-30 15:55:16,977 train_qn_base.py test loss: 0.0141, mse: 0.0141,  lcc: 0.9199, srcc: 0.9118
 2024-05-30 16:37:28,807 train_qn_base.py cnnA_cp_qn20240530_163707	0.36
+2024-05-30 16:41:37,697 train_qn_classifier.py hasaClass_cp_qn20240530_153219	69.30
+2024-05-30 16:41:37,697 train_qn_classifier.py train loss: 0.0469, valid loss: 0.0538 train acc: 35.2265, valid acc: 31.3782
+2024-05-30 16:41:49,343 train_qn_classifier.py test loss: 0.0556, mse: 0.1767,  lcc: 0.9399, srcc: 0.9321
+2024-05-30 17:21:45,634 train_qn_base.py cnnA_cp_qn20240530_163814	43.51
+2024-05-30 17:21:45,634 train_qn_base.py train loss: 0.0083, valid loss: 0.0104
+2024-05-30 17:22:05,609 train_qn_base.py test loss: 0.0109, mse: 0.0109,  lcc: 0.9381, srcc: 0.9306
+2024-05-30 19:14:26,837 train_qn_base.py cnnA_cp_qn20240530_174556	88.49
+2024-05-30 19:14:26,837 train_qn_base.py train loss: 0.0079, valid loss: 0.0109
+2024-05-30 19:14:48,172 train_qn_base.py test loss: 0.0113, mse: 0.0112,  lcc: 0.9366, srcc: 0.9291
+2024-05-30 19:29:39,142 train_qn_classifier.py cnnClass_cp_qn20240530_175417	95.36
+2024-05-30 19:29:39,142 train_qn_classifier.py train loss: 0.0513, valid loss: 0.1071 train acc: 33.6532, valid acc: 25.6080
+2024-05-30 19:30:05,782 train_qn_classifier.py test loss: 0.0874, mse: 0.4071,  lcc: 0.8988, srcc: 0.9047
+2024-05-30 20:40:33,560 train_qn_base.py cnnA_cp_qn20240530_192507	75.42
+2024-05-30 20:40:33,560 train_qn_base.py train loss: 0.0078, valid loss: 0.0104
+2024-05-30 20:40:55,382 train_qn_base.py test loss: 0.0108, mse: 0.0108,  lcc: 0.9394, srcc: 0.9320
+2024-05-30 21:59:14,065 train_qn_classifier.py cnnClass_cp_qn20240530_194517	133.95
+2024-05-30 21:59:14,065 train_qn_classifier.py train loss: 0.2041, valid loss: 0.2167 train acc: 31.2038, valid acc: 29.5660
+2024-05-30 21:59:35,776 train_qn_classifier.py test loss: 0.2117, mse: 0.2425,  lcc: 0.9294, srcc: 0.9234
+2024-05-30 22:09:05,487 train_qn_classifier.py hasaClass_cp_qn20240530_220831	0.55
+2024-05-30 22:09:38,756 train_qn_classifier.py hasaClass_cp_qn20240530_220925	0.21
+2024-05-30 23:21:53,297 train_qn_base.py cnnA_cp_qn20240530_205155	149.96
+2024-05-30 23:21:53,297 train_qn_base.py train loss: 0.0083, valid loss: 0.0128
+2024-05-30 23:22:15,930 train_qn_base.py test loss: 0.0120, mse: 0.0120,  lcc: 0.9370, srcc: 0.9318
+2024-05-30 23:33:41,440 train_qn_classifier.py hasaClass_cp_qn20240530_221024	83.27
+2024-05-30 23:33:41,440 train_qn_classifier.py train loss: 0.1832, valid loss: 0.1963 train acc: 34.4815, valid acc: 29.7568
+2024-05-30 23:33:53,343 train_qn_classifier.py test loss: 0.1900, mse: 0.1908,  lcc: 0.9355, srcc: 0.9276
+2024-05-30 23:45:43,284 train_qn_classifier.py hasaClass_cp_qn20240530_234334	2.14
+2024-05-30 23:45:43,284 train_qn_classifier.py train loss: 2.4785, valid loss: 2.2750 train acc: 20.5959, valid acc: 22.3653
+2024-05-30 23:45:54,218 train_qn_classifier.py test loss: 2.2052, mse: 0.3711,  lcc: 0.8633, srcc: 0.8518
+2024-05-31 00:52:39,552 train_qn_base.py cnnA_cp_qn20240530_233249	79.82
+2024-05-31 00:52:39,552 train_qn_base.py train loss: 0.0072, valid loss: 0.0101
+2024-05-31 00:53:05,914 train_qn_base.py test loss: 0.0104, mse: 0.0104,  lcc: 0.9413, srcc: 0.9337
+2024-05-31 01:01:36,225 train_qn_classifier.py hasaClass_cp_qn20240530_234616	75.33
+2024-05-31 01:01:36,225 train_qn_classifier.py train loss: 1.7004, valid loss: 1.8513 train acc: 36.7819, valid acc: 31.9027
+2024-05-31 01:01:46,842 train_qn_classifier.py test loss: 1.8295, mse: 0.1870,  lcc: 0.9372, srcc: 0.9296
+2024-05-31 09:57:18,565 train_qn_classifier.py hasaClass_cp_qn20240531_085815	59.05
+2024-05-31 09:57:18,566 train_qn_classifier.py train loss: 0.0489, valid loss: 0.0563 train acc: 34.5948, valid acc: 31.3305
+2024-05-31 09:57:43,848 train_qn_classifier.py test loss: 0.0557, mse: 0.1744,  lcc: 0.9408, srcc: 0.9318
+2024-05-31 10:08:00,563 train_qn_base.py cnnA_cp_qn20240531_084721	80.63
+2024-05-31 10:08:00,563 train_qn_base.py train loss: 0.0087, valid loss: 0.0108
+2024-05-31 10:08:16,996 train_qn_base.py test loss: 0.0110, mse: 0.0110,  lcc: 0.9376, srcc: 0.9305
+2024-05-31 13:18:43,902 train_qn_base.py cnnA_cp_qn20240531_114024	98.32
+2024-05-31 13:18:43,903 train_qn_base.py train loss: 0.0078, valid loss: 0.0105
+2024-05-31 13:19:15,343 train_qn_base.py test loss: 0.0106, mse: 0.0105,  lcc: 0.9404, srcc: 0.9327
+2024-05-31 13:59:19,020 train_qn_base.py cnnA_cp_qn20240531_114054	138.40
+2024-05-31 13:59:19,020 train_qn_base.py train loss: 0.0067, valid loss: 0.0108
+2024-05-31 13:59:43,014 train_qn_base.py test loss: 0.0102, mse: 0.0102,  lcc: 0.9421, srcc: 0.9347
+2024-05-31 16:59:12,345 train_qn_classifier.py cnnClass_cp_qn20240531_142747	151.39
+2024-05-31 16:59:12,345 train_qn_classifier.py train loss: 0.0600, valid loss: 0.0613 train acc: 30.8582, valid acc: 28.3262
+2024-05-31 16:59:35,128 train_qn_classifier.py test loss: 0.0601, mse: 0.1893,  lcc: 0.9378, srcc: 0.9293
+2024-05-31 17:29:29,551 train_qn_base.py cnnA_cp_qn20240531_142327	186.02
+2024-05-31 17:29:29,551 train_qn_base.py train loss: 0.0066, valid loss: 0.0107
+2024-05-31 17:29:53,257 train_qn_base.py test loss: 0.0111, mse: 0.0111,  lcc: 0.9375, srcc: 0.9302
+2024-05-31 20:39:26,776 train_qn_classifier.py hasaClass_cp_qn20240531_191859	80.45
+2024-05-31 20:39:26,776 train_qn_classifier.py train loss: 0.0510, valid loss: 0.0567 train acc: 33.5161, valid acc: 30.0906
+2024-05-31 20:39:37,656 train_qn_classifier.py test loss: 0.0586, mse: 0.1860,  lcc: 0.9362, srcc: 0.9258
+2024-05-31 21:38:21,834 train_qn_base.py cnnA_cp_qn20240531_191020	148.00
+2024-05-31 21:38:21,834 train_qn_base.py train loss: 0.0066, valid loss: 0.0099
+2024-05-31 21:38:45,482 train_qn_base.py test loss: 0.0110, mse: 0.0109,  lcc: 0.9378, srcc: 0.9312
+2024-05-31 23:13:18,778 train_qn_base.py transformer_cp_qn20240531_231151	1.45
+2024-05-31 23:14:13,779 train_qn_base.py transformer_cp_qn20240531_231357	0.27
+2024-05-31 23:14:42,569 train_qn_base.py transformer_cp_qn20240531_231433	0.15

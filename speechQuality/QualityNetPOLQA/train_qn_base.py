@@ -358,13 +358,13 @@ class Trainer(TrainerBase):
 
 if __name__ == "__main__":
     # arg = Args("hasa", model_name="hasa20240522_173240")
-    arg = Args("cnnA", task_type="_qn", qn_input_type=1)
+    arg = Args("transformer", task_type="_qn", qn_input_type=1)
     arg.epochs = 35
     arg.batch_size = 64
     arg.save = True
     arg.lr = 5e-4
     arg.step_size = 5
-    arg.delta_loss = 2e-4
+    arg.delta_loss = 1e-4
 
     # 用于 qualityNet
     arg.normalize_output = True

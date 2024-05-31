@@ -34,14 +34,25 @@ cnnA_cp_qn20240529_173910 对应的模型为 CnnMAttn 对应的数据集为 wav_
 hasa_cp_qn20240529_173644 对应的模型为 HASANet 不过在一开始加了一层conv1d 对应的数据集为 wav_train_qn_rs2.list qn_input_type=1 归一化输出  mse: 0.0116,  lcc: 0.9341, srcc: 0.9269
 hasa_cp_qn20240529_204006 对应的模型为 HASANet 删除了 conv1d 对应的数据集为 wav_train_qn_rs2.list qn_input_type=1 归一化输出  mse: 0.0113,  lcc: 0.9354, srcc: 0.9254
 hasa_cp_qn20240529_214354 对应的模型为 HASANet 用 rmsprop训练 对应的数据集为 wav_train_qn_rs2.list qn_input_type=1 归一化输出  mse: 0.0113,  lcc: 0.9359, srcc: 0.9260
+hasa_cp_qn20240529_231851 将帧的损失从 FrameMse2 换成 FrameMseNorm  mse: 0.0113,  lcc: 0.9359, srcc: 0.9257
 cnn_cp_qn20240529_210701  对应的模型为 Cnn 对应的数据集为 wav_train_qn_rs2.list qn_input_type=1 归一化输出  mse: 0.0116,  lcc: 0.9339, srcc: 0.9252
 cnnA_cp_qn20240529_224224 将卷积块的卷积和大小改为2    mse: 0.0104,  lcc: 0.9410, srcc: 0.9326
-hasa_cp_qn20240529_231851 将帧的损失从 FrameMse2 换成 FrameMseNorm  mse: 0.0113,  lcc: 0.9359, srcc: 0.9257
+cnnA_cp_qn20240530_205155 在 prepare 中加上了 BatchNorm1d  mse: 0.0120,  lcc: 0.9370, srcc: 0.9318 （效果并不好）
+cnnA_cp_qn20240530_233249 与 cnnA_cp_qn20240529_224224 的配置基本相同 mse: 0.0104,  lcc: 0.9413, srcc: 0.9337
+cnnA_cp_qn20240531_084721 将原本的3个conv层换成2个conv层，  mse: 0.0110,  lcc: 0.9376, srcc: 0.9305
+cnnA_cp_qn20240531_114024 将 prepare 中kernel_size=5改为kernel_size=4       mse: 0.0105,  lcc: 0.9404, srcc: 0.9327        
+cnnA_cp_qn20240531_114054 将 prepare 中kernel_size=5 改为kernel_size=4 并且加上了一层 conv  mse: 0.0102,  lcc: 0.9421, srcc: 0.9347
+cnnA_cp_qn20240531_142327 将 prepare 中kernel_size=4 改为 kernel_size=7，一共 4 层 conv  mse: 0.0111,  lcc: 0.9375, srcc: 0.9302
+cnnA_cp_qn20240531_142327 将 prepare 中kernel_size=4 改为 kernel_size=3，一共 4 层 conv  mse: 0.0109,  lcc: 0.9378, srcc: 0.9312
+
+
 
 
 ==== loss 为 预测损失（MSE）+ 分类损失（交叉熵）
 hasaClass_cp_qn20240530_001033 对应的模型为 HASAClassifier 归一化输出 输出为 cls mse: 0.1823,  lcc: 0.9380, srcc: 0.9312
 hasaClass_cp_qn20240530_001033 对应的模型为 HASAClassifier 归一化输出 输出为 avg + cls mse: 0.1755,  lcc: 0.9382, srcc: 0.9307
+hasaClass_cp_qn20240531_085815 将模型中的分类器和评分器中一开始的全连接层删除 输出为 cls mse: 0.1744,  lcc: 0.9408, srcc: 0.9318
+hasaClass_cp_qn20240531_191859 删除模型的layernorm 输出为cls                  mse: 0.1860,  lcc: 0.9362, srcc: 0.9258
 can2dClass_cp_qn20240530_001622  对应的模型为 CAN2dClass   归一化输出  mse: 0.2046,  lcc: 0.9280, srcc: 0.9188
 ====
 
@@ -49,4 +60,15 @@ can2dClass_cp_qn20240530_001622  对应的模型为 CAN2dClass   归一化输出
 hasaClass_cp_qn20240530_122915  对应的模型为 HASAClassifier 损失只使用EDMLoss  mse: 0.1890,  lcc: 0.9363, srcc: 0.9279
 hasaClass_cp_qn20240530_140944  对应的模型为 HASAClassifier 损失使用EDMLoss + norm mse  mse: 0.1816,  lcc: 0.9381, srcc: 0.9290
 ====
+
+==== 将分类器中 第一个全连接层的输出改回 1 倍 linear_output
+hasaClass_cp_qn20240530_153219  对应的模型为 HASAClassifier 损失使用EDMLoss + norm mse mse: 0.1767,  lcc: 0.9399, srcc: 0.9321
+====
+cnnClass_cp_qn20240531_142747  模型与cnnClass_cp_qn20240530_194517的不同，与cnnMAttn相似，损失为 EDMLoss + norm mse  mse: 0.1893,  lcc: 0.9378, srcc: 0.9293
+
+注意上面的 EDMLoss 中计算缺少了根号
+
+cnnClass_cp_qn20240530_194517 （未记录） 对应的模型为 CnnClass，损失使用 EDMLoss(加上根号) + norm mse mse: 0.2425,  lcc: 0.9294, srcc: 0.9234
+hasaClass_cp_qn20240530_221024  对应的模型为 HASAClassifier 损失使用EDMLoss（加上根号） + norm mse  mse: 0.1908,  lcc: 0.9355, srcc: 0.9276
+hasaClass_cp_qn20240530_234616   仅使用交叉熵损失       mse: 0.1870,  lcc: 0.9372, srcc: 0.9296
 

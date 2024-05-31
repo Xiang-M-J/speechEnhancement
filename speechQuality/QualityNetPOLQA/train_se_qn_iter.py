@@ -375,15 +375,16 @@ class TrainerQSE(TrainerBase):
 
 
 if __name__ == "__main__":
-    path_se = r"models\dpcrn_se20240518_224558\final.pt"
-    # path_se = r"models\lstm_se20240521_173158\final.pt"
+    # path_se = r"models\dpcrn_se20240518_224558\final.pt"
+    path_se = r"models\lstm_se20240521_173158\final.pt"
     # path_qn = r"models\lstmClass20240515_200350\final.pt"
     # path_qn = r"models\cnn20240515_100107\final.pt"
     # path_qn = r"models\hasa20240522_223914\final.pt"
-    path_qn = r"models\hasa_cp20240527_001840\final.pt"
+    # path_qn = r"models\hasa_cp20240527_001840\final.pt"
+    path_qn = r"models\hasa_cp_qn20240529_214354\final.pt"
     # arg = Args("dpcrn", task_type="_qse", model_name="dpcrn_se20240518_224558", model2_type="cnn")
     # arg = Args("lstm", task_type="_qse", model2_type="hasa")
-    arg = Args("dpcrn", "_qse", "hasa", qn_input_type=1, normalize_output=True)
+    arg = Args("lstm", "_qse", "hasa", qn_input_type=1, normalize_output=True)
     arg.epochs = 15
     arg.batch_size = 4
     arg.save = False
@@ -391,7 +392,7 @@ if __name__ == "__main__":
 
     arg.delta_loss = 1e-4
 
-    arg.se_input_type = 2
+    arg.se_input_type = 1
     # arg.optimizer_type = 1
 
     arg.iteration = 2 * 72000 // arg.batch_size

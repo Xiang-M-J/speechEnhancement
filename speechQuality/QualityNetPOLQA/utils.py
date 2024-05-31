@@ -232,7 +232,7 @@ def floatTensorToOnehot(x, step, s=False):
     x_i[x_i <= 0] = 0
     x_i = x_i // int(step * 100)
 
-    x_onehot = torch.nn.functional.one_hot(x_i.long(), int(4 / step))
+    x_onehot = torch.nn.functional.one_hot(x_i.long(), int(400 / int(step*100)))
 
     
     if s:

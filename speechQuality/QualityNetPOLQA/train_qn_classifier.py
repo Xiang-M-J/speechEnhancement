@@ -125,7 +125,6 @@ class TrainerC(TrainerBase):
             except Exception as e:
                 print("can not save graph")
                 self.writer.add_text("model info", info)
-                
 
         plt.ion()
         start_time = time.time()
@@ -354,14 +353,11 @@ if __name__ == "__main__":
     # arg = Args("lstmcanClass", model_name="lstmcanClass20240524_185704")
 
     arg.epochs = 35
-    arg.batch_size = 16
+    arg.batch_size = 32
     arg.save = True
     arg.lr = 5e-4
     arg.step_size = 5
     arg.delta_loss = 2e-4
-    arg.cnn_filter = 128
-    arg.cnn_feature = 64
-
 
     # 用于 qualityNet
     arg.normalize_output = True
@@ -380,7 +376,7 @@ if __name__ == "__main__":
     # arg.smooth = True
 
     print(arg)
-    
+
     seed_everything(arg.random_seed)
 
     # 以Class结尾时，返回TrainerC
@@ -391,7 +387,8 @@ if __name__ == "__main__":
 
     # 加载用于预测polqa分数的数据集 x: (B, L, C), y1: (B,), y2: (B, L)
     train_dataset, valid_dataset, test_dataset = load_dataset_qn("wav_train_qn_rs2.list", arg.spilt_rate,
-                                                                 arg.fft_size, arg.hop_size, input_type=arg.qn_input_type)
+                                                                 arg.fft_size, arg.hop_size,
+                                                                 input_type=arg.qn_input_type)
 
     model = load_qn_model(arg)
     # model = load_pretrained_model(r"models\hasaClass_cp_qn20240530_001033\final.pt")
