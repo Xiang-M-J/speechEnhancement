@@ -287,7 +287,7 @@ def oneHotToFloat(x: np.ndarray, step):
     x : N C, C=4//step
     """
     x_ = softmax(x, -1)
-    value = np.arange(1.0, 5.0, step)
+    value = np.arange(1.0, 4.99, step) + (step / 2)
     return np.dot(x_, value)
 
 

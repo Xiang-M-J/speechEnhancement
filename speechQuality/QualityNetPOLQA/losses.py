@@ -124,7 +124,7 @@ class FrameEDMLoss(nn.Module):
             cdf_input = torch.cumsum(input_, dim=-1)
             cdf_target = torch.cumsum(target_, dim=-1)
             cdf_diff = cdf_input - cdf_target
-            samplewise_emd = torch.sqrt(torch.mean(torch.pow(cdf_diff, 2), dim=-1) + 1e-6)
+            samplewise_emd = torch.mean(torch.pow(cdf_diff, 2), dim=-1)
             return samplewise_emd.mean()
         else:
             return 0

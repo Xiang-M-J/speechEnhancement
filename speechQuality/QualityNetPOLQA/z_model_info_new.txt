@@ -44,7 +44,13 @@ cnnA_cp_qn20240531_114024 将 prepare 中kernel_size=5改为kernel_size=4       
 cnnA_cp_qn20240531_114054 将 prepare 中kernel_size=5 改为kernel_size=4 并且加上了一层 conv  mse: 0.0102,  lcc: 0.9421, srcc: 0.9347
 cnnA_cp_qn20240531_142327 将 prepare 中kernel_size=4 改为 kernel_size=7，一共 4 层 conv  mse: 0.0111,  lcc: 0.9375, srcc: 0.9302
 cnnA_cp_qn20240531_142327 将 prepare 中kernel_size=4 改为 kernel_size=3，一共 4 层 conv  mse: 0.0109,  lcc: 0.9378, srcc: 0.9312
+cnnA_cp_qn20240531_220403 在prepare中的conv1d中加上了dilation=2，效果不好  mse: 0.0111,  lcc: 0.9372, srcc: 0.9295
+cnnA_cp_qn20240601_085425 设置与 cnnA_cp_qn20240531_114054 基本相同        mse: 0.0102,  lcc: 0.9421, srcc: 0.9347
+cnnA_cp_qn20240601_110231 将计算注意力时的dropout设置为0.2                 mse: 0.0101,  lcc: 0.9431, srcc: 0.9352
+cnnA_cp_qn20240601_135012 将计算注意力时的dropout设置为0.3                 mse: 0.0104,  lcc: 0.9412, srcc: 0.9336
 
+hasa_cp_qn20240601_085331 在linear1后加了一个avgpool2d 用来减小尺度，但是效果不好 mse: 0.0128,  lcc: 0.9273, srcc: 0.9174
+hasa_cp_qn20240601_140753 不使用帧的分数计算损失  mse: 0.0117,  lcc: 0.9332, srcc: 0.9252
 
 
 
@@ -52,9 +58,12 @@ cnnA_cp_qn20240531_142327 将 prepare 中kernel_size=4 改为 kernel_size=3，�
 hasaClass_cp_qn20240530_001033 对应的模型为 HASAClassifier 归一化输出 输出为 cls mse: 0.1823,  lcc: 0.9380, srcc: 0.9312
 hasaClass_cp_qn20240530_001033 对应的模型为 HASAClassifier 归一化输出 输出为 avg + cls mse: 0.1755,  lcc: 0.9382, srcc: 0.9307
 hasaClass_cp_qn20240531_085815 将模型中的分类器和评分器中一开始的全连接层删除 输出为 cls mse: 0.1744,  lcc: 0.9408, srcc: 0.9318
-hasaClass_cp_qn20240531_191859 删除模型的layernorm 输出为cls                  mse: 0.1860,  lcc: 0.9362, srcc: 0.9258
+hasaClass_cp_qn20240531_191859 删除模型的layer norm 输出为cls                  mse: 0.1860,  lcc: 0.9362, srcc: 0.9258
 can2dClass_cp_qn20240530_001622  对应的模型为 CAN2dClass   归一化输出  mse: 0.2046,  lcc: 0.9280, srcc: 0.9188
 ====
+
+hasaClass_cp_qn20240601_124549 只使用交叉熵损失训练  mse: 0.1921,  lcc: 0.9346, srcc: 0.9269
+
 
 ==== 将分类器中 第一个全连接层的输出改为 2 倍 linear_output
 hasaClass_cp_qn20240530_122915  对应的模型为 HASAClassifier 损失只使用EDMLoss  mse: 0.1890,  lcc: 0.9363, srcc: 0.9279
@@ -72,3 +81,9 @@ cnnClass_cp_qn20240530_194517 （未记录） 对应的模型为 CnnClass，损�
 hasaClass_cp_qn20240530_221024  对应的模型为 HASAClassifier 损失使用EDMLoss（加上根号） + norm mse  mse: 0.1908,  lcc: 0.9355, srcc: 0.9276
 hasaClass_cp_qn20240530_234616   仅使用交叉熵损失       mse: 0.1870,  lcc: 0.9372, srcc: 0.9296
 
+hasaClass_cp_qn20240601_110340 使用帧EDMloss 和 EDMLoss mse: 0.1897,  lcc: 0.9362, srcc: 0.9283
+hasaClass_cp_qn20240601_201732 将步长改为0.5 mse: 0.2310,  lcc: 0.9355, srcc: 0.9271
+hasaClass_cp_qn20240601_215235 将步长改为0.5，且不归一化输出   mse: 0.1840,  lcc: 0.9351, srcc: 0.9268
+
+dpcrn_qsehasa20240601_151620 注意这里用的质量模型实际为 cnnA_cp_qn20240601_110231 
+MOS_COL:3.0969	MOS_DISC:4.0339	MOS_LOUD:3.6941	MOS_NOISE:3.9610	MOS_REVERB:4.0386	MOS_SIG:3.3002	MOS_OVRL:2.8234	

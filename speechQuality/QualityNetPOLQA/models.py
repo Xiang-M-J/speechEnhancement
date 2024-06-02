@@ -13,12 +13,14 @@ class ConvBlock(nn.Module):
         self.rct = nn.ReLU()
         # self.relu = nn.ReLU()
         self.bn = nn.BatchNorm1d(out_channels)
+        self.dropout = nn.Dropout(0.1)
 
     def forward(self, x):
         residual_x = x
         x = self.conv1(x)
         x = self.conv2(x)
         x = self.conv3(x)
+
         return self.rct(self.bn(self.pool(residual_x + x)))
 
 
@@ -122,11 +124,12 @@ class Cnn2d(nn.Module):
         return x
 
 
-class CnnMAttn(nn.Module):
+class CnnMAttnStack(nn.Module):
     def __init__(self, ):
-        super(CnnMAttn, self).__init__()
+        super(CnnMAttnStack, self).__init__()
         self.prepare = nn.Sequential(
-            Rearrange("N L C -> N C L"),
+            nn.Conv2d(in_channels=2, out_channels=1, kernel_size=1, ),
+            Rearrange("N H L C -> N (H C) L"),
             nn.Conv1d(in_channels=257, out_channels=128, kernel_size=4, dilation=2),
             nn.ELU(),
         )
@@ -136,6 +139,40 @@ class CnnMAttn(nn.Module):
         self.conv4 = ConvBlock(128, 128, pool_size=2, feature_dim=64, dilation=8)
 
         self.attn = nn.MultiheadAttention(128, 8, 0.1, batch_first=True)
+        self.avg_linear = nn.Sequential(
+            nn.LayerNorm(128),
+            Rearrange("N L C -> N C L"),
+            nn.AdaptiveAvgPool1d(1),
+            nn.Flatten(),
+            nn.Linear(128, 1),
+        )
+
+    def forward(self, x):
+        x = self.prepare(x)
+        x = self.conv1(x)
+        x = self.conv2(x)
+        x = self.conv3(x)
+        x = self.conv4(x)
+        x = x.permute([0, 2, 1])
+        x, _ = self.attn(x, x, x)
+        x = self.avg_linear(x)
+        return x
+
+
+class CnnMAttn(nn.Module):
+    def __init__(self, ):
+        super(CnnMAttn, self).__init__()
+        self.prepare = nn.Sequential(
+            Rearrange("N L C -> N C L"),
+            nn.Conv1d(in_channels=257, out_channels=128, kernel_size=4),
+            nn.ELU(),
+        )
+        self.conv1 = ConvBlock(128, 128, pool_size=2, feature_dim=64, dilation=64)
+        self.conv2 = ConvBlock(128, 128, pool_size=2, feature_dim=64, dilation=32)
+        self.conv3 = ConvBlock(128, 128, pool_size=2, feature_dim=64, dilation=16)
+        self.conv4 = ConvBlock(128, 128, pool_size=2, feature_dim=64, dilation=8)
+
+        self.attn = nn.MultiheadAttention(128, 8, 0.2, batch_first=True)
         self.avg_linear = nn.Sequential(
             nn.LayerNorm(128),
             Rearrange("N L C -> N C L"),
@@ -385,31 +422,6 @@ class HASANetStack(nn.Module):
         return hasqi_fram, hasqi_avg.squeeze(1)  # (B, 1, T_length) (B,1)
 
 
-class Transformer(nn.Module):
-    def __init__(self):
-        super().__init__()
-        self.prepare = nn.Sequential(
-            Rearrange("N L C -> N C L"),
-            nn.Conv1d(257, 128, kernel_size=1),
-            nn.ReLU(),
-            Rearrange("N C L -> N L C"),
-        )
-        encoder_layer = nn.TransformerEncoderLayer(d_model=128, nhead=8, dim_feedforward=1024, batch_first=True)
-        self.encoder = nn.TransformerEncoder(encoder_layer, num_layers=6)
-        self.frame = nn.Sequential(
-            nn.Linear(128, 1),
-            nn.Flatten(),
-        )
-        self.average = nn.AdaptiveAvgPool1d(1)
-
-    def forward(self, x):
-        x = self.prepare(x)
-        x = self.encoder(x)
-        frame_score = self.frame(x)
-        score = self.average(frame_score)
-        return frame_score, score
-
-
 class HASAClassifier(nn.Module):
     """
     input_size: 257
@@ -438,16 +450,12 @@ class HASAClassifier(nn.Module):
         self.attn = nn.MultiheadAttention(linear_output, num_heads=8, dropout=0.1, batch_first=True)
         self.ln = nn.LayerNorm(linear_output)
         self.cls = nn.Sequential(
-            # nn.Linear(linear_output, linear_output),
-            # nn.ReLU(),
             Rearrange("N L C -> N C L"),
             nn.AdaptiveAvgPool1d(1),
             nn.Flatten(),
             nn.Linear(linear_output, num_class),
         )
         self.score = nn.Sequential(
-            # nn.Linear(linear_output, linear_output),
-            # nn.ReLU(),
             Rearrange("N L C -> N C L"),
             nn.AdaptiveAvgPool1d(1),
             nn.Flatten(),
@@ -463,7 +471,7 @@ class HASAClassifier(nn.Module):
         c = self.cls(x)
 
         return score, c
-        # return c, c
+        return c, c
 
 
 class HASANet(nn.Module):
@@ -504,6 +512,7 @@ class HASANet(nn.Module):
         x, _ = self.attn(x, x, x)
         x = x.transpose(0, 1)  # (B, T_length, 128)
         x = self.ln(x)
+
         x = self.frame(x)  # (B, T_length, 1)
         # x = self.act(x)  # pass a sigmoid
         frame_score = x.permute(0, 2, 1)  # (B, 1, T_length)

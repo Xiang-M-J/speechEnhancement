@@ -44,7 +44,7 @@ class TrainerQSE(TrainerBase):
         mag_pred, mag_true = self.cal_qn_input(x, y, y_pred, self.mask_target, self.se_input_type)
 
         mag = torch.concat([mag_pred, mag_true], 0)
-        # l1 = loss_fn(model_qn, mag_true)
+        l1 = loss_fn(model_qn, mag_true)
         loss = loss_fn(model_qn, mag_pred)
         loss.requires_grad_(True)
         # loss_qn = -loss_fn(mag_pred)
@@ -262,19 +262,19 @@ class TrainerQSE(TrainerBase):
             tqdm.write("正在退出")
             # 训练结束时需要进行的工作
             end_time = time.time()
-            tqdm.write('Train ran for %.2f minutes' % ((end_time - start_time) / 60.))
+            print('Train ran for %.2f minutes' % ((end_time - start_time) / 60.))
             self.logging.info(self.args.model_name + "\t{:.2f}".format((end_time - start_time) / 60.))
             self.logging.info("train loss: {:.4f}, valid loss: {:.4f}"
                               .format(metric.train_loss[-1], metric.valid_loss[-1]))
             if self.args.save:
                 plt.clf()
                 torch.save(model_se, self.final_model_path)
-                tqdm.write(f"save model(final): {self.final_model_path}")
+                print(f"save model(final): {self.final_model_path}")
                 np.save(os.path.join(self.data_path, "train_metric.npy"), metric.items())
                 fig1 = plot_metric({"train_loss": metric.train_loss, "valid_loss": metric.valid_loss},
                                    title="train and valid loss", result_path=self.image_path)
                 fig2 = plot_metric({"mos_sig": metric.sig, "mos_ovrl": metric.ovrl}, title="mos_sig and mos_ovrl",
-                                   result_path=self.image_path)
+                                   xlabel="mini-epoch", ylabel="", result_path=self.image_path)
                 self.writer.add_figure("learn loss", fig1)
                 self.writer.add_figure("mos_all", fig2)
                 self.writer.add_text("beat valid loss", f"{metric.best_valid_loss}")
@@ -375,28 +375,29 @@ class TrainerQSE(TrainerBase):
 
 
 if __name__ == "__main__":
-    # path_se = r"models\dpcrn_se20240518_224558\final.pt"
-    path_se = r"models\lstm_se20240521_173158\final.pt"
+    path_se = r"models\dpcrn_se20240518_224558\final.pt"
+    # path_se = r"models\lstm_se20240521_173158\final.pt"
     # path_qn = r"models\lstmClass20240515_200350\final.pt"
     # path_qn = r"models\cnn20240515_100107\final.pt"
     # path_qn = r"models\hasa20240522_223914\final.pt"
     # path_qn = r"models\hasa_cp20240527_001840\final.pt"
-    path_qn = r"models\hasa_cp_qn20240529_214354\final.pt"
+    path_qn = r"models\cnnA_cp_qn20240601_110231\final.pt"
+    # path_qn = r"models\hasa_cp_qn20240529_214354\final.pt"
     # arg = Args("dpcrn", task_type="_qse", model_name="dpcrn_se20240518_224558", model2_type="cnn")
     # arg = Args("lstm", task_type="_qse", model2_type="hasa")
-    arg = Args("lstm", "_qse", "hasa", qn_input_type=1, normalize_output=True)
+    arg = Args("dpcrn", "_qse", "cnnA", qn_input_type=1, normalize_output=True)
     arg.epochs = 15
-    arg.batch_size = 4
-    arg.save = False
+    arg.batch_size = 8
+    arg.save = True
     arg.lr = 5e-5
 
     arg.delta_loss = 1e-4
 
-    arg.se_input_type = 1
+    arg.se_input_type = 2
     # arg.optimizer_type = 1
 
     arg.iteration = 2 * 72000 // arg.batch_size
-    arg.iter_step = 200
+    arg.iter_step = 100
     arg.step_size = 25
 
     if not arg.model_type.endswith("_qse"):

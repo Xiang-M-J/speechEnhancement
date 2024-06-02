@@ -64,7 +64,7 @@ class TrainerGRL(TrainerBase):
         y = y.to(device)
         y_pred = model(x)
         mag_pred, mag_true = self.cal_qn_input(x, y, y_pred, self.mask_target, self.se_input_type)
-        loss = -loss_fn(model_qn, mag_pred)
+        loss = loss_fn(model_qn, mag_pred)
 
         return loss.item(), y_pred.cpu().detach()
 
@@ -279,7 +279,8 @@ class TrainerGRL(TrainerBase):
                 tqdm.write(f"save model(final): {self.final_model_path}")
                 np.save(os.path.join(self.data_path, "train_metric.npy"), metric.items())
                 fig = plot_metric({"train_loss": metric.train_loss, "valid_loss": metric.valid_loss},
-                                  title="train and valid loss", result_path=self.image_path)
+                                  title="train and valid loss", xlabel="mini-epoch", ylabel="",
+                                  result_path=self.image_path)
                 self.writer.add_figure("learn loss", fig)
                 self.writer.add_text("beat valid loss", f"{metric.best_valid_loss}")
                 self.writer.add_text("duration", "{:2f}".format((end_time - start_time) / 60.))
@@ -383,11 +384,12 @@ if __name__ == "__main__":
     # path_se = r"models\lstm_se20240521_173158\final.pt"
     path_se = r"models\dpcrn_se20240518_224558\final.pt"
     # path_qn = r"models\hasa20240523_102833\final.pt"
-    path_qn = r"models\hasa_cp20240527_001840\final.pt"
+    # path_qn = r"models\cnnA_cp_qn20240601_110231\final.pt"
+    path_qn = r"models\hasa_cp_qn20240529_214354\final.pt"
 
     # arg = Args("dpcrn_qse", model_name="dpcrn_se20240518_224558", model2_type="cnn")
     # arg = Args("lstm", task_type="_wgan", model2_type="hasa")
-    arg = Args("dpcrn", "_grl", "hasa", qn_compress=True, normalize_output=True)
+    arg = Args("dpcrn", "_grl", "hasa", qn_input_type=1, normalize_output=True)
     arg.epochs = 15
     arg.batch_size = 8
     arg.save = False

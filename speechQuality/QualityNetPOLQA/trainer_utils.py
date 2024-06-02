@@ -7,7 +7,7 @@ from sklearn.metrics import classification_report, confusion_matrix
 import torchinfo
 
 from models import HASANetStack, Cnn, LstmClassifier, CnnClass, Cnn2d, \
-    HASANet, CAN2dClass, LstmCANClass, CnnMAttn, HASAClassifier, Transformer
+    HASANet, CAN2dClass, LstmCANClass, CnnMAttn, HASAClassifier
 from lstm import lstm_net
 from DPCRN import dpcrn
 from hubert import Hubert
@@ -336,11 +336,11 @@ class EarlyStopping:
         else:
             self.patience2 = self.patience_
         self.last_val_loss = val_loss
-        if self.patience2 == 1:
+        if self.patience2 == 0:
             print(f"The validation loss continue increase in {self.patience_} iterations, stop train")
             print(f"The final validation loss is {val_loss}")
             return True
-        if self.patience == 1:
+        if self.patience == 0:
             print(f"The validation loss has not changed in {self.patience_} iterations, stop train")
             print(f"The final validation loss is {val_loss}")
             return True
@@ -450,8 +450,6 @@ def load_qn_model(args: Args):
         model = CnnClass(args.score_class_num)
     elif model_type == "hubert":
         model = Hubert()
-    elif model_type == "transformer":
-        model = Transformer()
     else:
         raise ValueError("Invalid model type")
 

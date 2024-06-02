@@ -55,6 +55,14 @@ CNN 应该也能计算帧损失
 
 对于CNNMAttn 最后直接使用 nn.Linear(128, 1) 比用 nn.Linear(128, 50) nn.Linear(50, 1) 效果好
 
+将mos指标用于语音增强模型的训练，训练时根据mos分数考虑为每条语音分配权重
+
+实验中发现直流分量的损失总是最大的
+
+![image-20240601100950420](https://cdn.jsdelivr.net/gh/Xiang-M-J/MyPic@img/img/image-20240601100950420.png)
+
+
+
 ## 多维度语音质量评价
 
 MOS_COL：频谱染色

@@ -10,7 +10,7 @@ from torch.utils.data import dataloader
 from tqdm import tqdm
 from trainer_base import TrainerBase
 
-from losses import EDMLoss, AvgCrossEntropyLoss, NormMseLoss
+from losses import EDMLoss, AvgCrossEntropyLoss, NormMseLoss, FrameEDMLoss
 from trainer_utils import Args, EarlyStopping, Metric, plot_metric, load_qn_model, load_dataset_qn, confuseMatrix, \
     plot_matrix, load_pretrained_model, log_model
 from utils import accurate_num_cal, oneHotToFloat, seed_everything
@@ -33,8 +33,9 @@ class TrainerC(TrainerBase):
             loss1 = NormMseLoss()
         else:
             loss1 = nn.MSELoss()
-        loss2 = EDMLoss(self.args.score_step, self.args.smooth)
-        # loss2 = AvgCrossEntropyLoss(step=self.args.score_step)
+        # loss1 = FrameEDMLoss(self.args.smooth, self.args.enable_frame, self.args.score_step)
+        # loss2 = EDMLoss(self.args.score_step, self.args.smooth)
+        loss2 = AvgCrossEntropyLoss(step=self.args.score_step)
 
         loss1.to(device=device)
         loss2.to(device=device)
@@ -347,7 +348,7 @@ class TrainerC(TrainerBase):
 
 if __name__ == "__main__":
     # arg = Args("can2dClass", task_type="_qn", qn_input_type=1)
-    arg = Args("hasaClass", task_type="_qn", qn_input_type=1)
+    arg = Args("hasaClass", task_type="_qn", qn_input_type=1, score_step=0.5)
     # arg = Args("hasaClass", task_type="_qn", qn_input_type=1, model_name="hasaClass_cp_qn20240530_001033")
     # arg = Args("can2dClass", model_name="can2dClass20240524_203611")
     # arg = Args("lstmcanClass", model_name="lstmcanClass20240524_185704")
@@ -360,7 +361,7 @@ if __name__ == "__main__":
     arg.delta_loss = 2e-4
 
     # 用于 qualityNet
-    arg.normalize_output = True
+    # arg.normalize_output = True
 
     # 训练Hubert
     # arg.optimizer_type = 1
@@ -371,7 +372,6 @@ if __name__ == "__main__":
     # arg.enableFrame = False
 
     # 训练分类模型
-    # arg.score_step = 0.2
     # arg.focal_gamma = 2
     # arg.smooth = True
 
