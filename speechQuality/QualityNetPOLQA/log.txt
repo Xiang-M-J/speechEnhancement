@@ -365,3 +365,67 @@ test loss: -0.5051
 2024-06-01 22:51:42,944 train_qn_classifier.py hasaClass_cp_qn20240601_215235	59.11
 2024-06-01 22:51:42,945 train_qn_classifier.py train loss: 1.0665, valid loss: 1.2337 train acc: 60.8224, valid acc: 55.0310
 2024-06-01 22:51:54,766 train_qn_classifier.py test loss: 1.2439, mse: 0.1840,  lcc: 0.9351, srcc: 0.9268
+2024-06-02 09:38:23,777 train_se_qn_iter.py dpcrn_qsecnnA20240602_093710	1.22
+2024-06-02 09:38:23,777 train_se_qn_iter.py train loss: 0.1086, valid loss: 0.0106
+2024-06-02 10:57:38,032 train_se_qn_iter.py dpcrn_qsecnnA20240602_093913	78.38
+2024-06-02 10:57:38,033 train_se_qn_iter.py train loss: 0.0021, valid loss: 0.0020
+2024-06-02 10:58:05,521 train_se_qn_iter.py MOS_COL:3.0951	MOS_DISC:3.8528	MOS_LOUD:3.8595	MOS_NOISE:4.0284	MOS_REVERB:4.0851	MOS_SIG:3.3851	MOS_OVRL:2.9052	
+2024-06-02 10:58:05,522 train_se_qn_iter.py test loss: 0.0004
+2024-06-02 23:16:17,620 train_se_grl.py dpcrn_grlcnnA20240602_230408	12.14
+2024-06-02 23:16:17,620 train_se_grl.py train loss: 0.0000, valid loss: 0.0000
+2024-06-03 01:35:37,155 train_se_grl.py dpcrn_grlcnnA20240602_231626	139.17
+2024-06-03 01:35:37,156 train_se_grl.py train loss: 0.0000, valid loss: 0.0000
+2024-06-03 01:36:03,858 train_se_grl.py MOS_COL:2.6123	MOS_DISC:3.2448	MOS_LOUD:3.0232	MOS_NOISE:3.5034	MOS_REVERB:3.7858	MOS_SIG:2.2772	MOS_OVRL:1.9192	
+2024-06-03 01:36:03,858 train_se_grl.py test loss: 0.0000 2024-06-03 16:48:04,630 train_se_grl.py dpcrn_grlcnnA20240603_162744	20.32
+2024-06-03 16:48:04,630 train_se_grl.py train loss: 0.0207, valid loss: 0.0033
+2024-06-03 17:23:17,907 train_se_grl.py dpcrn_grlcnnA20240603_164819	34.97
+2024-06-03 17:23:17,907 train_se_grl.py train loss: 0.3123, valid loss: 0.0466
+2024-06-03 17:23:44,570 train_se_grl.py MOS_COL:3.1265	MOS_DISC:3.5551	MOS_LOUD:3.6276	MOS_NOISE:3.7552	MOS_REVERB:3.9267	MOS_SIG:2.9794	MOS_OVRL:2.5439	
+2024-06-03 17:23:44,570 train_se_grl.py test loss: 0.0075
+2024-06-03 22:12:10,780 train_se_grl.py dpcrn_grlcnnA20240603_213653	35.28
+2024-06-03 22:12:10,781 train_se_grl.py train loss: 0.0142, valid loss: 0.0021
+2024-06-03 22:12:37,879 train_se_grl.py MOS_COL:3.0291	MOS_DISC:3.3512	MOS_LOUD:2.7836	MOS_NOISE:3.2391	MOS_REVERB:3.9827	MOS_SIG:2.8303	MOS_OVRL:2.2163	
+2024-06-03 22:12:37,879 train_se_grl.py test loss: 0.0004
+2024-06-03 22:51:51,018 train_se_grl.py dpcrn_grlcnnA20240603_221634	35.26
+2024-06-03 22:51:51,018 train_se_grl.py train loss: 0.0020, valid loss: 0.0003
+2024-06-03 22:52:17,937 train_se_grl.py MOS_COL:3.3107	MOS_DISC:4.4032	MOS_LOUD:3.4901	MOS_NOISE:2.6966	MOS_REVERB:3.3791	MOS_SIG:3.3790	MOS_OVRL:2.6297	
+2024-06-03 22:52:17,937 train_se_grl.py test loss: 0.0001
+2024-06-04 01:35:30,661 train_se_wgan_iter.py dpcrn_wgancnn20240603_234915	106.24
+2024-06-04 01:35:30,661 train_se_wgan_iter.py train loss: -0.2405, valid loss: -0.0942
+2024-06-04 01:35:57,248 train_se_wgan_iter.py MOS_COL:3.3089	MOS_DISC:3.7346	MOS_LOUD:3.3250	MOS_NOISE:3.7236	MOS_REVERB:4.0586	MOS_SIG:3.0265	MOS_OVRL:2.6019	
+2024-06-04 01:35:57,248 train_se_wgan_iter.py test loss: -0.0149
+2024-06-04 23:57:11,289 train_se_joint.py dpcrn_jointcnnA20240604_082936	927.55
+2024-06-04 23:57:11,290 train_se_joint.py train loss: 0.0421, valid loss: 0.0432
+2024-06-05 00:02:22,196 train_se_joint.py MOS_COL:3.3093	MOS_DISC:4.0472	MOS_LOUD:3.5537	MOS_NOISE:3.8294	MOS_REVERB:4.0001	MOS_SIG:3.2595	MOS_OVRL:2.8109	
+2024-06-05 00:02:22,196 train_se_joint.py test loss: 0.0418
+2024-06-05 10:59:48,270 train_qn_base.py cnnA_cp_qn20240605_105900	0.80
+2024-06-05 11:09:42,554 train_se_qn_iter.py dpcrn_qsecnnA20240605_110719	2.37
+2024-06-05 11:29:59,593 train_se_qn_iter.py dpcrn_qsecnnA20240605_112912	0.77
+2024-06-05 13:08:11,976 train_se_qn_iter.py dpcrn_qsehasa20240605_113058	97.22
+2024-06-05 13:08:11,977 train_se_qn_iter.py train loss: 0.0005, valid loss: 0.0001
+2024-06-05 13:08:38,988 train_se_qn_iter.py MOS_COL:3.1765	MOS_DISC:3.8297	MOS_LOUD:2.4295	MOS_NOISE:3.7598	MOS_REVERB:4.3027	MOS_SIG:2.9025	MOS_OVRL:2.3208	
+2024-06-05 13:08:38,989 train_se_qn_iter.py test loss: 0.0000
+2024-06-05 15:37:53,834 train_qn_base.py hasa_cp_qn20240605_144522	52.52
+2024-06-05 15:37:53,834 train_qn_base.py train loss: 0.0111, valid loss: 0.0175
+2024-06-05 15:38:20,382 train_qn_base.py test loss: 0.0169, mse: 0.0127,  lcc: 0.9309, srcc: 0.9294
+2024-06-05 16:46:49,327 train_qn_base.py hasa_cp_qn20240605_155039	56.15
+2024-06-05 16:46:49,328 train_qn_base.py train loss: 0.4717, valid loss: 0.4632
+2024-06-05 16:47:03,473 train_qn_base.py test loss: 0.4790, mse: 0.2915,  lcc: -0.3601, srcc: -0.3865
+2024-06-05 18:18:14,884 train_qn_base.py cnnA_cp_qn20240605_165512	83.02
+2024-06-05 18:18:14,885 train_qn_base.py train loss: 0.0066, valid loss: 0.0107
+2024-06-05 18:18:46,415 train_qn_base.py test loss: 0.0107, mse: 0.0107,  lcc: 0.9395, srcc: 0.9326
+2024-06-05 21:30:00,770 train_se_qn_iter.py dpcrn_qsecnnA20240605_195422	95.63
+2024-06-05 21:30:00,770 train_se_qn_iter.py train loss: 0.0010, valid loss: 0.0017
+2024-06-05 23:16:06,731 train_se_qn_iter.py dpcrn_qsecnnA20240605_213140	104.44
+2024-06-05 23:16:06,732 train_se_qn_iter.py train loss: 0.0009, valid loss: 0.0025
+2024-06-05 23:16:35,787 train_se_qn_iter.py MOS_COL:3.0622	MOS_DISC:3.5545	MOS_LOUD:3.4733	MOS_NOISE:4.0895	MOS_REVERB:4.2051	MOS_SIG:3.0231	MOS_OVRL:2.5786	
+2024-06-05 23:16:35,788 train_se_qn_iter.py test loss: 0.0003
+2024-06-06 01:31:06,563 train_se_qn_iter.py dpcrn_qsecnnA20240605_234639	104.44
+2024-06-06 01:31:06,564 train_se_qn_iter.py train loss: 0.0029, valid loss: 0.0055
+2024-06-06 01:31:35,261 train_se_qn_iter.py MOS_COL:3.1254	MOS_DISC:3.9919	MOS_LOUD:3.7677	MOS_NOISE:3.9181	MOS_REVERB:4.0419	MOS_SIG:3.3141	MOS_OVRL:2.8472	
+2024-06-06 01:31:35,261 train_se_qn_iter.py test loss: 0.0006
+2024-06-06 10:42:39,623 train_se_wgan_iter.py dpcrn_wgancnnA20240606_085534	107.08
+2024-06-06 10:42:39,624 train_se_wgan_iter.py train loss: -0.2543, valid loss: -0.1004
+2024-06-06 10:43:06,018 train_se_wgan_iter.py MOS_COL:3.2311	MOS_DISC:3.7445	MOS_LOUD:3.2673	MOS_NOISE:3.7090	MOS_REVERB:3.9035	MOS_SIG:2.9489	MOS_OVRL:2.5306	
+2024-06-06 10:43:06,019 train_se_wgan_iter.py test loss: -0.0163 
+

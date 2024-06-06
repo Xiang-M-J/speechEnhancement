@@ -38,12 +38,12 @@ class TrainerGRL(TrainerBase):
         x = x.to(device)
         y = y.to(device)
         y_pred = model(x)
-        y_pred = GRL.apply(y_pred, 1)
+        
         mag_pred, mag_true = self.cal_qn_input(x, y, y_pred, self.mask_target, self.se_input_type)
-
+        mag_pred = GRL.apply(mag_pred, 2)
         loss = loss_fn(model_qn, mag_pred)
         # 对于 model_qn 需要减小损失，等价于使mean(score)减小，即让model_qn的评分标准更加严格
-        # 而对于 model_se 需要减小的损失为 -loss，即让评分更高，即训练出性能更好的增强模型
+        # 而对于 model_se 需要减小的损失为 -c
 
         loss.requires_grad_(True)
         # 优化鉴别器
@@ -111,7 +111,7 @@ class TrainerGRL(TrainerBase):
         loss_fn, loss_fn2 = self.get_loss_fn()
 
         optimizer = torch.optim.RMSprop(
-            [{"params": model_se.parameters(), "lr": self.lr}, {"params": model_qn.parameters(), "lr": self.lr}],
+            [{"params": model_se.parameters(), "lr": self.lr}, {"params": model_qn.parameters(), "lr": 0.1 * self.lr}],
             lr=self.args.lr)
 
         scheduler = self.get_scheduler(optimizer, arg=self.args)
@@ -384,23 +384,23 @@ if __name__ == "__main__":
     # path_se = r"models\lstm_se20240521_173158\final.pt"
     path_se = r"models\dpcrn_se20240518_224558\final.pt"
     # path_qn = r"models\hasa20240523_102833\final.pt"
-    # path_qn = r"models\cnnA_cp_qn20240601_110231\final.pt"
-    path_qn = r"models\hasa_cp_qn20240529_214354\final.pt"
+    path_qn = r"models\cnnA_cp_qn20240601_110231\final.pt"
+    # path_qn = r"models\hasa_cp_qn20240529_214354\final.pt"
 
     # arg = Args("dpcrn_qse", model_name="dpcrn_se20240518_224558", model2_type="cnn")
     # arg = Args("lstm", task_type="_wgan", model2_type="hasa")
-    arg = Args("dpcrn", "_grl", "hasa", qn_input_type=1, normalize_output=True)
+    arg = Args("dpcrn", "_grl", "cnnA", qn_input_type=1, normalize_output=True)
     arg.epochs = 15
     arg.batch_size = 8
-    arg.save = False
+    arg.save = True
     arg.lr = 5e-5
 
     arg.delta_loss = 2e-4
 
     # arg.se_input_type = 1
 
-    arg.iteration = 2 * 72000 // arg.batch_size
-    arg.iter_step = 50
+    arg.iteration = 72000 // arg.batch_size
+    arg.iter_step = 100
     arg.step_size = 25
 
     if arg.model2_type is None:

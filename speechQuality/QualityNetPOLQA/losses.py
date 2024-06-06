@@ -218,7 +218,9 @@ class QNLoss(nn.Module):
             if not self.norm:
                 score = (score - 1.0) / 4.0
             else:
+                # score = torch.nn.functional.hardsigmoid(score)
                 score = score.sigmoid()
+        # return torch.nn.functional.mse_loss(score, torch.ones_like(score, dtype=score.dtype, device=score.device))
         return torch.mean(torch.pow(1 - score, 2))
 
 
@@ -242,7 +244,8 @@ class CriticLoss(nn.Module):
                 score[score > 1.0] = 1.
                 score[score < 0.0] = 0.
             else:
-                score = score.sigmoid()
+                # score = score.sigmoid()
+                score = torch.nn.functional.hardsigmoid(score)
 
         return torch.mean(score)
 

@@ -86,4 +86,7 @@ hasaClass_cp_qn20240601_201732 将步长改为0.5 mse: 0.2310,  lcc: 0.9355, src
 hasaClass_cp_qn20240601_215235 将步长改为0.5，且不归一化输出   mse: 0.1840,  lcc: 0.9351, srcc: 0.9268
 
 dpcrn_qsehasa20240601_151620 注意这里用的质量模型实际为 cnnA_cp_qn20240601_110231 
-MOS_COL:3.0969	MOS_DISC:4.0339	MOS_LOUD:3.6941	MOS_NOISE:3.9610	MOS_REVERB:4.0386	MOS_SIG:3.3002	MOS_OVRL:2.8234	
+MOS_COL:3.0969	MOS_DISC:4.0339	MOS_LOUD:3.6941	MOS_NOISE:3.9610	MOS_REVERB:4.0386	MOS_SIG:3.3002	MOS_OVRL:2.8234
+
+
+cnnA_cp_qn20240605_165512 将归一化输出的sigmoid激活函数换成hardsigmoid函数（没什么效果）  mse: 0.0107,  lcc: 0.9395, srcc: 0.9326

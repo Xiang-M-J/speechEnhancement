@@ -531,4 +531,4 @@ if __name__ == '__main__':
         y = model(x)
     t2 = time.time()
     print(t2 - t1)
-    print(y.shape)
+    # print(y.shape)

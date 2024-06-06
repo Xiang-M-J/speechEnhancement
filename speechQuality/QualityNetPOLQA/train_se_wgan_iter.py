@@ -73,8 +73,8 @@ class TrainerSEWG(TrainerBase):
         y_pred = model(x)
         mag_pred, mag_true = self.cal_qn_input(x, y, y_pred, self.mask_target, self.se_input_type)
         # l1 = loss_fn(model_qn, mag_true)  # f_w(x(i))
-        l2 = loss_fn(model_qn, mag_pred)
-        loss = -l2
+        loss = -loss_fn(model_qn, mag_pred)
+        
         return loss.item(), y_pred.cpu().detach()
 
     def freeze_parameters(self, model: nn.Module, names=None):
@@ -119,7 +119,7 @@ class TrainerSEWG(TrainerBase):
         # loss_fn = QNLoss(isClass=("Class" in self.args.model2_type), step=self.args.score_step).to(device)
         loss_fn, loss_fn2 = self.get_loss_fn()
 
-        optimizerC = torch.optim.RMSprop(model_qn.parameters(), lr=self.args.lr)
+        optimizerC = torch.optim.RMSprop(model_qn.parameters(), lr= 0.1 * self.args.lr)
         if arg.model_type.startswith("dpcrn"):
             optimizerG = torch.optim.Adam(model_se.parameters(), lr=self.args.lr)
         else:
@@ -398,14 +398,15 @@ if __name__ == "__main__":
     # path_se = r"models\lstm_se20240521_173158\final.pt"
     path_se = r"models\dpcrn_se20240518_224558\final.pt"
     # path_qn = r"models\hasa20240523_102833\final.pt"
-    # path_qn = r"models\cnnA_cp_qn20240601_110231\final.pt"
-    path_qn = r"models\hasa_cp_qn20240529_214354\final.pt"
+    path_qn = r"models\cnnA_cp_qn20240601_110231\final.pt"
+    # path_qn = r"models\cnnA_cp_qn20240605_165512\final.pt"
+    # path_qn = r"models\hasa_cp_qn20240529_214354\final.pt"
 
     # arg = Args("dpcrn_qse", model_name="dpcrn_se20240518_224558", model2_type="cnn")
     # arg = Args("lstm", task_type="_wgan", model2_type="hasa")
-    arg = Args("dpcrn", "_wgan", "hasa", qn_input_type=1, normalize_output=True)
+    arg = Args("dpcrn", "_wgan", "cnnA", qn_input_type=1, normalize_output=True)
     arg.epochs = 15
-    arg.batch_size = 4
+    arg.batch_size = 8
     arg.save = False
     arg.lr = 5e-5
 
@@ -413,7 +414,7 @@ if __name__ == "__main__":
 
     arg.se_input_type = 2
 
-    arg.iteration = 2 * 72000 // arg.batch_size
+    arg.iteration = 72000 // arg.batch_size
     arg.iter_step = 50
     arg.step_size = 25
 

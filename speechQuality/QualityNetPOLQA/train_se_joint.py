@@ -360,9 +360,10 @@ class TrainerSEJ(TrainerBase):
 if __name__ == "__main__":
     path_se = r"models\dpcrn_se20240518_224558\final.pt"
     # path_qn = r"models\hasa20240522_223914\final.pt"
-    path_qn = r"models\hasa_cp20240527_001840\final.pt"
+    # path_qn = r"models\hasa_cp20240527_001840\final.pt"
+    path_qn = r"models\cnnA_cp_qn20240601_110231\final.pt"
     # arg = Args("dpcrn_qse", model_name="dpcrn_se20240518_224558", model2_type="cnn")
-    arg = Args("dpcrn", task_type="_joint", model2_type="hasa", qn_input_type=1, normalize_output=True)
+    arg = Args("dpcrn", task_type="_joint", model2_type="cnnA", qn_input_type=1, normalize_output=True)
     # arg = Args("dpcrn", task_type="_joint", model2_type="hasa")
 
     arg.epochs = 30

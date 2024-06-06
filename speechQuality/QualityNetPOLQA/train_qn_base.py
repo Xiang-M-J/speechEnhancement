@@ -17,6 +17,8 @@ from trainer_base import TrainerBase
 
 device = torch.device('cuda') if torch.cuda.is_available() else torch.device('cpu')
 
+# hardsigmoid = torch.nn.functional.hardsigmoid
+
 
 class Trainer(TrainerBase):
     """
@@ -49,12 +51,16 @@ class Trainer(TrainerBase):
             avgS = model(x)
             if self.args.normalize_output:
                 avgS = avgS.sigmoid()
+                # avgS = hardsigmoid(avgS)
+
             loss = loss1(avgS.squeeze(-1), y1)
         else:
             frameS, avgS = model(x)
             if self.args.normalize_output:
                 avgS = avgS.sigmoid()
                 frameS = frameS.sigmoid()
+                # avgS = hardsigmoid(avgS)
+                # frameS = hardsigmoid(frameS)
             l1 = loss1(avgS.squeeze(-1), y1)
             l2 = loss2(frameS, y2)
             loss = l1 + l2
@@ -77,6 +83,7 @@ class Trainer(TrainerBase):
             avgS = model(x)
             if self.args.normalize_output:
                 avgS = avgS.sigmoid()
+                # avgS = hardsigmoid(avgS)
             loss = loss1(avgS.squeeze(-1), y1)
         else:
             frameS, avgS = model(x)
@@ -134,7 +141,6 @@ class Trainer(TrainerBase):
             except Exception as e:
                 print("can not save graph")
                 self.writer.add_text("model info", info)
-
 
         # 设置损失函数和模型
         loss1, loss2 = self.get_loss_fn()
