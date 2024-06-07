@@ -47,7 +47,7 @@ class Trainer(TrainerBase):
         if self.args.normalize_output:
             y1 = normalize(y1)
             y2 = normalize(y2)
-        if "cnn" in self.args.model_type or "hubert" in self.args.model_type:
+        if "cnn" in self.args.model_type or "hubert" in self.args.model_type or "crn" in self.args.model_type:
             avgS = model(x)
             if self.args.normalize_output:
                 avgS = avgS.sigmoid()
@@ -79,7 +79,7 @@ class Trainer(TrainerBase):
         if self.args.normalize_output:
             y1 = normalize(y1)
             y2 = normalize(y2)
-        if "cnn" in self.args.model_type or "hubert" in self.args.model_type:
+        if "cnn" in self.args.model_type or "hubert" in self.args.model_type or "crn" in self.args.model_type:
             avgS = model(x)
             if self.args.normalize_output:
                 avgS = avgS.sigmoid()
@@ -329,7 +329,7 @@ class Trainer(TrainerBase):
         else:
             plt.clf()
             plt.scatter(POLQA_True, POLQA_Predict, s=6)
-            plt.show()
+            # plt.show()
             plt.pause(2)
             plt.ioff()
 
@@ -364,7 +364,7 @@ class Trainer(TrainerBase):
 
 if __name__ == "__main__":
     # arg = Args("hasa", model_name="hasa20240522_173240")
-    arg = Args("cnnA", task_type="_qn", qn_input_type=1)
+    arg = Args("crn", task_type="_qn", qn_input_type=1)
     arg.epochs = 35
     arg.batch_size = 64
     arg.save = True

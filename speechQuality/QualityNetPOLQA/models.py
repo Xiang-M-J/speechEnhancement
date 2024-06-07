@@ -474,6 +474,73 @@ class HASAClassifier(nn.Module):
         return c, c
 
 
+class CRN(nn.Module):
+    def __init__(self):
+        super().__init__()
+        C = 512
+        self.en1 = nn.Sequential(
+            # pad1,
+            Rearrange("N L C -> N C L"),
+            nn.Conv1d(257, C, kernel_size=2, stride=2),
+            nn.BatchNorm1d(C),
+            nn.ReLU())
+        self.en2 = nn.Sequential(
+            # pad1,
+            nn.Conv1d(C, C, kernel_size=2, stride=2),
+            nn.BatchNorm1d(C),
+            nn.ReLU())
+        self.en3 = nn.Sequential(
+            # pad1,
+            nn.Conv1d(C, C, kernel_size=2, stride=1),
+            nn.BatchNorm1d(C),
+            nn.ReLU(),
+            Rearrange("N C L -> N L C")
+            )
+
+        self.attn1 = nn.MultiheadAttention(C, 8, 0.1, batch_first=True)
+
+        # self.inter_rnn = nn.Sequential(
+        #     Rearrange("N C L F -> (N C) L F"),
+        #     nn.LSTM(input_size=128, hidden_size=128, bidirectional=True, batch_first=False),
+        # )
+        # self.inter_trans = nn.Sequential(
+        #     nn.LayerNorm(128),
+        #     Rearrange("(N C) L F -> N C L F", C=C),
+        #     nn.Linear(in_features=128, out_features=100),
+        # )
+
+        self.rnn = nn.Sequential(
+            nn.LSTM(input_size= C, hidden_size=512, bidirectional=True, batch_first=True),
+        )
+        self.trans = nn.Sequential(
+            nn.LayerNorm(512*2),
+            nn.Linear(in_features=512*2, out_features=512),
+        )
+        
+        self.attn2 = nn.MultiheadAttention(512, 8, 0.1, batch_first=True)
+        
+        self.classifier = nn.Sequential(
+            Rearrange("N L C -> N C L"),
+            nn.AdaptiveAvgPool1d(1),
+            nn.Flatten(),
+            nn.Linear(in_features=512, out_features=1),
+        )
+
+    def forward(self, x):
+        x = self.en1(x)
+        x = self.en2(x)
+        x = self.en3(x)
+        # x, _ = self.attn1(x, x, x)    # 加上 attn1 效果比较差
+        # intra_out, _ = self.rnn1(x)
+        # intra_out = self.intra_trans(intra_out)
+        x, _ = self.rnn(x)
+        x = self.trans(x)
+        x, _ = self.attn2(x, x, x)
+        # x = inter_out + intra_out
+        x = self.classifier(x)
+        return x
+
+
 class HASANet(nn.Module):
     """
     input_size: 257

@@ -6,8 +6,8 @@ import torch
 from sklearn.metrics import classification_report, confusion_matrix
 import torchinfo
 
-from models import HASANetStack, Cnn, LstmClassifier, CnnClass, Cnn2d, \
-    HASANet, CAN2dClass, LstmCANClass, CnnMAttn, HASAClassifier
+from models import (HASANetStack, Cnn, LstmClassifier, CnnClass, Cnn2d, HASANet, CAN2dClass, LstmCANClass,
+                    CnnMAttn, HASAClassifier, CRN)
 from lstm import lstm_net
 from DPCRN import dpcrn
 from hubert import Hubert
@@ -450,6 +450,8 @@ def load_qn_model(args: Args):
         model = CnnClass(args.score_class_num)
     elif model_type == "hubert":
         model = Hubert()
+    elif model_type == "crn":
+        model = CRN()
     else:
         raise ValueError("Invalid model type")
 

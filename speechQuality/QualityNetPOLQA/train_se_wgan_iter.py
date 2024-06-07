@@ -398,7 +398,8 @@ if __name__ == "__main__":
     # path_se = r"models\lstm_se20240521_173158\final.pt"
     path_se = r"models\dpcrn_se20240518_224558\final.pt"
     # path_qn = r"models\hasa20240523_102833\final.pt"
-    path_qn = r"models\cnnA_cp_qn20240601_110231\final.pt"
+    # path_qn = r"models\cnnA_cp_qn20240601_110231\final.pt"
+    path_qn = r"models\cnnA_cp_qn20240607_000313\final.pt"
     # path_qn = r"models\cnnA_cp_qn20240605_165512\final.pt"
     # path_qn = r"models\hasa_cp_qn20240529_214354\final.pt"
 
@@ -406,7 +407,7 @@ if __name__ == "__main__":
     # arg = Args("lstm", task_type="_wgan", model2_type="hasa")
     arg = Args("dpcrn", "_wgan", "cnnA", qn_input_type=1, normalize_output=True)
     arg.epochs = 15
-    arg.batch_size = 8
+    arg.batch_size = 4
     arg.save = False
     arg.lr = 5e-5
 
@@ -416,7 +417,7 @@ if __name__ == "__main__":
 
     arg.iteration = 72000 // arg.batch_size
     arg.iter_step = 50
-    arg.step_size = 25
+    arg.step_size = 15
 
     if arg.model2_type is None:
         raise ValueError("model qn type cannot be none")
