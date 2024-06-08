@@ -1,6 +1,7 @@
 import torch
 import torch.nn as nn
 from einops.layers.torch import Rearrange
+from torchvision.models import resnet18
 
 
 class ConvBlock(nn.Module):
@@ -123,6 +124,25 @@ class Cnn2d(nn.Module):
         x = self.avg2(x)
         return x
 
+
+class ResNet(nn.Module):
+    def __init__(self):
+        super(ResNet, self).__init__()
+        self.prepare = nn.Sequential(
+            Rearrange("N (W L) C -> N W L C", W=1),
+            nn.Conv2d(1, 3, kernel_size=1),
+            nn.BatchNorm2d(3),
+            nn.ReLU()
+        )
+        self.resnet = resnet18()
+        self.resnet.avgpool = nn.AdaptiveAvgPool2d(output_size=(1, 1))
+        self.resnet.fc = nn.Linear(512, 1)
+    
+    def forward(self, x):
+        x = self.prepare(x)
+        x = self.resnet(x)
+        return x
+    
 
 class CnnMAttnStack(nn.Module):
     def __init__(self, ):
@@ -477,7 +497,8 @@ class HASAClassifier(nn.Module):
 class CRN(nn.Module):
     def __init__(self):
         super().__init__()
-        C = 512
+        C = 256
+        C2 = 128
         self.en1 = nn.Sequential(
             # pad1,
             Rearrange("N L C -> N C L"),
@@ -497,46 +518,30 @@ class CRN(nn.Module):
             Rearrange("N C L -> N L C")
             )
 
-        self.attn1 = nn.MultiheadAttention(C, 8, 0.1, batch_first=True)
-
-        # self.inter_rnn = nn.Sequential(
-        #     Rearrange("N C L F -> (N C) L F"),
-        #     nn.LSTM(input_size=128, hidden_size=128, bidirectional=True, batch_first=False),
-        # )
-        # self.inter_trans = nn.Sequential(
-        #     nn.LayerNorm(128),
-        #     Rearrange("(N C) L F -> N C L F", C=C),
-        #     nn.Linear(in_features=128, out_features=100),
-        # )
-
         self.rnn = nn.Sequential(
-            nn.LSTM(input_size= C, hidden_size=512, bidirectional=True, batch_first=True),
+            nn.LSTM(input_size= C, hidden_size=C2, bidirectional=True, batch_first=True),
         )
         self.trans = nn.Sequential(
-            nn.LayerNorm(512*2),
-            nn.Linear(in_features=512*2, out_features=512),
+            nn.LayerNorm(C2*2),
+            nn.Linear(in_features=C2*2, out_features=C2),
         )
         
-        self.attn2 = nn.MultiheadAttention(512, 8, 0.1, batch_first=True)
+        self.attn = nn.MultiheadAttention(C2, 8, 0.1, batch_first=True)
         
         self.classifier = nn.Sequential(
             Rearrange("N L C -> N C L"),
             nn.AdaptiveAvgPool1d(1),
             nn.Flatten(),
-            nn.Linear(in_features=512, out_features=1),
+            nn.Linear(in_features=C2, out_features=1),
         )
 
     def forward(self, x):
         x = self.en1(x)
         x = self.en2(x)
         x = self.en3(x)
-        # x, _ = self.attn1(x, x, x)    # 加上 attn1 效果比较差
-        # intra_out, _ = self.rnn1(x)
-        # intra_out = self.intra_trans(intra_out)
         x, _ = self.rnn(x)
         x = self.trans(x)
-        x, _ = self.attn2(x, x, x)
-        # x = inter_out + intra_out
+        x, _ = self.attn(x, x, x)
         x = self.classifier(x)
         return x
 

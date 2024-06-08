@@ -90,14 +90,24 @@ MOS_COL:3.0969	MOS_DISC:4.0339	MOS_LOUD:3.6941	MOS_NOISE:3.9610	MOS_REVERB:4.038
 
 
 dpcrn_grlcnnA20240606_205542 质量模型使用 cnnA_cp_qn20240601_110231
-MOS_COL:3.2746	MOS_DISC:4.1523	MOS_LOUD:3.5320	MOS_NOISE:3.3834	MOS_REVERB:3.8820	MOS_SIG:3.5274	MOS_OVRL:2.8992	
+MOS_COL:3.2746	MOS_DISC:4.1523	MOS_LOUD:3.5320	MOS_NOISE:3.3834	MOS_REVERB:3.8820	MOS_SIG:3.5274	MOS_OVRL:2.8992
 
 dpcrn_grlcnnA20240607_220153 质量模型使用 cnnA_cp_qn20240607_000313 
 MOS_COL:3.3651  MOS_DISC:4.0860 MOS_LOUD:3.5704 MOS_NOISE:3.2383        MOS_REVERB:3.6539       MOS_SIG:3.2686  MOS_OVRL:2.7441
 
+dpcrn_jointcnnA20240604_082936 质量模型使用 cnnA_cp_qn20240601_110231 每次训练时都计算质量损失
+MOS_COL:3.3093	MOS_DISC:4.0472	MOS_LOUD:3.5537	MOS_NOISE:3.8294	MOS_REVERB:4.0001	MOS_SIG:3.2595	MOS_OVRL:2.8109
+
 cnnA_cp_qn20240605_165512 将归一化输出的sigmoid激活函数换成hardsigmoid函数（没什么效果）  mse: 0.0107,  lcc: 0.9395, srcc: 0.9326
 cnnA_cp_qn20240607_000313 只训练了 5 个 epoch mse: 0.0127,  lcc: 0.9279, srcc: 0.9194
 
-crn_cp_qn20240607_231722  C=256，mse: 0.0097,  lcc: 0.9451, srcc: 0.9371
-crn_cp_qn20240608_001513  C=128
-crn_cp_qn20240608_001701  C=256 LSTM 的隐层为512（原本为 256）
+crn_cp_qn20240607_231722  C=256   mse: 0.0097,  lcc: 0.9451, srcc: 0.9371
+crn_cp_qn20240608_001513  C=128   mse: 0.0107,  lcc: 0.9412, srcc: 0.9350
+crn_cp_qn20240608_001701  C=512 LSTM 的隐层为512（原本为 256）  mse: 0.0123,  lcc: 0.9338, srcc: 0.9292
+crn_cp_qn20240608_084606  C = 256 LSTM 隐层为 128，trans 的输出为 256  mse: 0.0099,  lcc: 0.9449, srcc: 0.9387
+crn_cp_qn20240608_084631  C = 256 LSTM 隐层为 128，trans 的输出为 128  mse: 0.0106,  lcc: 0.9412, srcc: 0.9351
+crn_cp_qn20240608_095007  C = 256 LSTM 隐层为 128，trans 的输出为 512  mse: 0.0110,  lcc: 0.9400, srcc: 0.9338
+crn_cp_qn20240608_095242  C= 256 lstm 隐层为 64，trans 的输出为 128   mse: 0.0109,  lcc: 0.9415, srcc: 0.9374  
+crn_cp_qn20240608_150311  C=256 lstm 隐层为128，trans 的输出为 128   mse: 0.0103,  lcc: 0.9443, srcc: 0.9387
+crn_cp_qn20240608_160031  C=256 lstm 隐层为128，trans 的输出为 128   mse: 0.0103,  lcc: 0.9411, srcc: 0.9352
+

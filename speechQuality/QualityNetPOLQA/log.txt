@@ -484,10 +484,56 @@ test loss: -0.5051
 2024-06-07 22:56:38,073 train_se_grl.py train loss: 0.0264, valid loss: 0.0170
 2024-06-07 22:57:10,589 train_se_grl.py MOS_COL:3.3651	MOS_DISC:4.0860	MOS_LOUD:3.5704	MOS_NOISE:3.2383	MOS_REVERB:3.6539	MOS_SIG:3.2686	MOS_OVRL:2.7441	
 2024-06-07 22:57:10,589 train_se_grl.py test loss: 0.0011 
-
 2024-06-07 23:05:03,962 train_qn_base.py crn_cp_qn20240607_215940	65.38
 2024-06-07 23:05:03,962 train_qn_base.py train loss: 0.0081, valid loss: 0.0135
 2024-06-07 23:05:26,185 train_qn_base.py test loss: 0.0139, mse: 0.0139,  lcc: 0.9313, srcc: 0.9282
 2024-06-08 00:11:06,406 train_qn_base.py crn_cp_qn20240607_231722	53.73
 2024-06-08 00:11:06,406 train_qn_base.py train loss: 0.0073, valid loss: 0.0101
 2024-06-08 00:11:17,976 train_qn_base.py test loss: 0.0098, mse: 0.0097,  lcc: 0.9451, srcc: 0.9371
+2024-06-08 01:15:20,632 train_qn_base.py crn_cp_qn20240608_001701	58.31
+2024-06-08 01:15:20,632 train_qn_base.py train loss: 0.0079, valid loss: 0.0121
+2024-06-08 01:15:31,566 train_qn_base.py test loss: 0.0124, mse: 0.0123,  lcc: 0.9338, srcc: 0.9292
+2024-06-08 01:15:53,360 train_qn_base.py crn_cp_qn20240608_001513	60.66
+2024-06-08 01:15:53,361 train_qn_base.py train loss: 0.0080, valid loss: 0.0113
+2024-06-08 01:16:04,882 train_qn_base.py test loss: 0.0107, mse: 0.0107,  lcc: 0.9412, srcc: 0.9350
+2024-06-08 08:44:24,716 train_qn_base.py crn_cp_qn20240608_084209	2.24
+2024-06-08 08:44:24,716 train_qn_base.py train loss: 0.0289, valid loss: 0.0211
+2024-06-08 08:44:29,519 train_qn_base.py crn_cp_qn20240608_084244	1.74
+2024-06-08 08:44:29,519 train_qn_base.py train loss: 0.0300, valid loss: 0.0222
+2024-06-08 09:21:04,878 train_qn_base.py crn_cp_qn20240608_084606	34.97
+2024-06-08 09:21:04,878 train_qn_base.py train loss: 0.0071, valid loss: 0.0102
+2024-06-08 09:21:27,979 train_qn_base.py test loss: 0.0099, mse: 0.0099,  lcc: 0.9449, srcc: 0.9387
+2024-06-08 09:41:52,709 train_qn_base.py crn_cp_qn20240608_084631	55.34
+2024-06-08 09:41:52,709 train_qn_base.py train loss: 0.0085, valid loss: 0.0112
+2024-06-08 09:42:03,634 train_qn_base.py test loss: 0.0107, mse: 0.0106,  lcc: 0.9412, srcc: 0.9351
+2024-06-08 10:49:11,613 train_qn_base.py crn_cp_qn20240608_095242	56.47
+2024-06-08 10:49:11,613 train_qn_base.py train loss: 0.0075, valid loss: 0.0112
+2024-06-08 10:49:35,813 train_qn_base.py test loss: 0.0109, mse: 0.0109,  lcc: 0.9415, srcc: 0.9374
+2024-06-08 10:50:42,157 train_qn_base.py crn_cp_qn20240608_095007	60.57
+2024-06-08 10:50:42,157 train_qn_base.py train loss: 0.0071, valid loss: 0.0111
+2024-06-08 10:50:53,629 train_qn_base.py test loss: 0.0111, mse: 0.0110,  lcc: 0.9400, srcc: 0.9338
+2024-06-08 12:09:17,500 train_se_qn_iter.py dpcrn_qsecnnA20240608_110148	67.47
+2024-06-08 12:09:17,501 train_se_qn_iter.py train loss: 0.0050, valid loss: 0.0012
+2024-06-08 12:21:42,925 train_qn_base.py crn_cp_qn20240608_110239	79.04
+2024-06-08 12:21:42,925 train_qn_base.py train loss: 0.0080, valid loss: 0.0104
+2024-06-08 12:22:13,903 train_qn_base.py test loss: 0.0109, mse: 0.0108,  lcc: 0.9390, srcc: 0.9322
+2024-06-08 12:45:58,834 train_se_qn_iter.py dpcrn_qsecnnA20240608_121032	35.44
+2024-06-08 12:45:58,835 train_se_qn_iter.py train loss: 0.0037, valid loss: 0.0035
+2024-06-08 12:51:31,491 train_qn_base.py crn_cp_qn20240608_124519	6.19
+2024-06-08 12:51:31,492 train_qn_base.py train loss: 0.0228, valid loss: 0.0183
+2024-06-08 13:49:08,827 train_qn_base.py crn_cp_qn20240608_125152	57.25
+2024-06-08 13:49:08,827 train_qn_base.py train loss: 0.0068, valid loss: 0.0099
+2024-06-08 13:49:30,803 train_qn_base.py test loss: 0.0104, mse: 0.0104,  lcc: 0.9414, srcc: 0.9340
+2024-06-08 13:53:03,703 train_qn_base.py crn_cp_qn20240608_125407	58.92
+2024-06-08 13:53:03,703 train_qn_base.py train loss: 0.0078, valid loss: 0.0103
+2024-06-08 13:53:15,111 train_qn_base.py test loss: 0.0104, mse: 0.0104,  lcc: 0.9427, srcc: 0.9362
+2024-06-08 14:57:37,436 train_qn_base.py crn_cp_qn20240608_140402	53.58
+2024-06-08 14:57:37,436 train_qn_base.py train loss: 0.0091, valid loss: 0.0118
+2024-06-08 14:57:48,878 train_qn_base.py test loss: 0.0123, mse: 0.0122,  lcc: 0.9332, srcc: 0.9259
+2024-06-08 15:56:36,180 train_qn_base.py crn_cp_qn20240608_150311	53.39
+2024-06-08 15:56:36,180 train_qn_base.py train loss: 0.0080, valid loss: 0.0106
+2024-06-08 15:56:48,718 train_qn_base.py test loss: 0.0103, mse: 0.0103,  lcc: 0.9443, srcc: 0.9387
+2024-06-08 16:06:32,122 train_se_joint.py dpcrn_jointcnnA20240608_160608	0.38
+2024-06-08 17:01:17,040 train_qn_base.py crn_cp_qn20240608_160031	60.75
+2024-06-08 17:01:17,040 train_qn_base.py train loss: 0.0083, valid loss: 0.0108
+2024-06-08 17:01:39,036 train_qn_base.py test loss: 0.0106, mse: 0.0105,  lcc: 0.9412, srcc: 0.9352

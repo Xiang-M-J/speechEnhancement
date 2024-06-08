@@ -40,19 +40,19 @@ class TrainerSEJ(TrainerBase):
         y = y.to(device)
         y_pred = model(x)
 
-        mag_pred, mag_true = self.cal_qn_input(x, y, y_pred, self.mask_target, self.se_input_type)
-        l1 = loss_fn(model_qn, mag_pred)
-        l2 = apply_SE_Loss(x, y, y_pred, loss_fn2, self.mask_target, self.se_input_type)
-        loss = l1 + l2
-        loss.requires_grad_(True)
-        # if (batch_idx + 1) % 10 == 0:
-        #     mag_pred, mag_true = cal_QN_input(x, y, y_pred, self.mask_target, self.se_input_type)
-        #     l1 = loss_fn(model_qn, mag_pred)
-        #     l2 = apply_SE_Loss(x, y, y_pred, loss_fn2, self.mask_target, self.se_input_type)
-        #     loss = l1 + l2
-        #     loss.requires_grad_(True)
-        # else:
-        #     loss = apply_SE_Loss(x, y, y_pred, loss_fn2, self.mask_target, self.se_input_type)
+        # mag_pred, mag_true = self.cal_qn_input(x, y, y_pred, self.mask_target, self.se_input_type)
+        # l1 = loss_fn(model_qn, mag_pred)
+        # l2 = apply_SE_Loss(x, y, y_pred, loss_fn2, self.mask_target, self.se_input_type)
+        # loss = l1 + l2
+        # loss.requires_grad_(True)
+        if (batch_idx + 1) % 10 == 0:
+            mag_pred, mag_true = cal_QN_input(x, y, y_pred, self.mask_target, self.se_input_type)
+            l1 = loss_fn(model_qn, mag_pred)
+            l2 = apply_SE_Loss(x, y, y_pred, loss_fn2, self.mask_target, self.se_input_type)
+            loss = l1 + l2
+            loss.requires_grad_(True)
+        else:
+            loss = apply_SE_Loss(x, y, y_pred, loss_fn2, self.mask_target, self.se_input_type)
         optimizer.zero_grad()
         loss.backward()
         optimizer.step()

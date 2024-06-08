@@ -1,4 +1,4 @@
-batch_size: 32
+batch_size: 64
 beta1: 0.99
 beta2: 0.999
 cnn_feature: 64
@@ -18,10 +18,10 @@ load_weight: false
 lr: 0.0005
 mask_target: null
 model2_type: null
-model_name: crn_cp_qn20240606_222844
+model_name: crn_cp_qn20240608_084606
 model_type: crn_cp_qn
 normalize_output: true
-now_time: '20240606_222844'
+now_time: '20240608_084606'
 optimizer_type: 1
 patience: 5
 qn_input_type: 1

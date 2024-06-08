@@ -381,6 +381,7 @@ if __name__ == "__main__":
     # path_qn = r"models\cnn20240515_100107\final.pt"
     # path_qn = r"models\hasa20240522_223914\final.pt"
     # path_qn = r"models\hasa_cp20240527_001840\final.pt"
+    # path_qn = r"models\crn_cp_qn20240607_231722\final.pt"
     path_qn = r"models\cnnA_cp_qn20240601_110231\final.pt"     # 用 sigmoid 作为输出的激活函数
     # path_qn = r"models\cnnA_cp_qn20240605_165512\final.pt"     # 用 hardsigmoid 作为输出的激活函数
     # path_qn = r"models\hasa_cp_qn20240529_214354\final.pt"

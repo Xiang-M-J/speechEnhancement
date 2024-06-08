@@ -18,10 +18,10 @@ load_weight: false
 lr: 0.0005
 mask_target: null
 model2_type: null
-model_name: crn_cp_qn20240608_001513
+model_name: crn_cp_qn20240608_150311
 model_type: crn_cp_qn
 normalize_output: true
-now_time: '20240608_001513'
+now_time: '20240608_150311'
 optimizer_type: 1
 patience: 5
 qn_input_type: 1
