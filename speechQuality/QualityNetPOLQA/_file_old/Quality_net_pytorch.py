@@ -15,7 +15,7 @@ import random
 
 from torch.utils.data import DataLoader
 
-from utils import DNSPOLQADataset
+from utils import POLQADataset
 from tqdm import tqdm
 
 random.seed(999)
@@ -213,8 +213,8 @@ print('training...')
 g1 = train_data_generator(Train_list)
 g2 = val_data_generator(Test_list)
 
-train_dataset = DNSPOLQADataset(Train_list)
-test_dataset = DNSPOLQADataset(Test_list)
+train_dataset = POLQADataset(Train_list)
+test_dataset = POLQADataset(Test_list)
 
 train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True)
 test_loader = DataLoader(test_dataset, batch_size=batch_size, shuffle=True)

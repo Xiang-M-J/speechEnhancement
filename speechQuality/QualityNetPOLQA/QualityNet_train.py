@@ -10,7 +10,7 @@ import torch.nn as nn
 from torch.utils.data import DataLoader
 from tqdm import tqdm
 
-from utils import DNSPOLQADataset, ListRead, FrameMse
+from utils import POLQADataset, ListRead, FrameMse
 
 epoch = 25
 batch_size = 32
@@ -76,8 +76,8 @@ scheduler = torch.optim.lr_scheduler.StepLR(optim, step_size=15, gamma=0.2)
 
 print('training...')
 
-train_dataset = DNSPOLQADataset(Train_list)
-test_dataset = DNSPOLQADataset(Test_list)
+train_dataset = POLQADataset(Train_list)
+test_dataset = POLQADataset(Test_list)
 
 train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True)
 test_loader = DataLoader(test_dataset, batch_size=batch_size, shuffle=True)

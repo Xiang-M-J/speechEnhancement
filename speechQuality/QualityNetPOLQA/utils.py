@@ -58,9 +58,9 @@ def path2Spec(path, fft_size=512, hop_size=256, input_type=1):
     return feat_x, phase_x
 
 
-class DNSPOLQADataset(Dataset):
+class POLQADataset(Dataset):
     def __init__(self, wav_files: list[str], fft_size: int = 512, hop_size: int = 256, return_wav=False, input_type=1):
-        super(DNSPOLQADataset, self).__init__()
+        super(POLQADataset, self).__init__()
         self.fft_size = fft_size
         self.hop_size = hop_size
         self.return_wav = return_wav
@@ -118,6 +118,41 @@ class DNSDataset(Dataset):
         return len(self.noise_path)
 
 
+class DNSPOLQADataset(Dataset):
+    def __init__(self, files, fft_num, win_shift, win_size, input_type=2) -> None:
+        super().__init__()
+        self.noise_path = []
+        self.clean_path = []
+        self.mos = []
+        for file in files:
+            noise, clean, mos = file.split(",")
+            self.noise_path.append(noise)
+            self.mos.append(float(mos))
+            self.clean_path.append(clean)
+        self.fft_num = fft_num
+        self.win_shift = win_shift
+        self.win_size = win_size
+        self.input_type = input_type
+
+    def __getitem__(self, index):
+        noisy_wav = self.noise_path[index]
+        clean_wav = self.clean_path[index]
+        polqa = self.mos[index]
+
+        noise, _ = preprocess(noisy_wav)
+        clean, _ = preprocess(clean_wav)
+
+        pn_feat, pn_phase = getStftSpec(noise, self.fft_num, self.win_shift, self.win_size, self.input_type)
+        pc_feat, pc_phase = getStftSpec(clean, self.fft_num, self.win_shift, self.win_size, self.input_type)
+
+        return pn_feat, pn_phase, pc_feat, clean, torch.tensor(polqa, dtype=torch.float32), polqa * torch.ones(
+            [pn_feat.shape[0]], dtype=torch.float32,
+            device=device)
+
+    def __len__(self):
+        return len(self.noise_path)
+
+
 class CalSigmos:
     def __init__(self, fs=48000, batch=True, model_dir="sigmos"):
         super().__init__()
@@ -160,7 +195,7 @@ def preprocess(wav_path):
     预处理音频，约束波形幅度
     """
     wav, fs = torchaudio.load(wav_path)
-    wav = wav / torch.max(torch.abs(wav))
+    # wav = wav / torch.max(torch.abs(wav))
     return wav.squeeze(0), fs
 
 
@@ -232,9 +267,8 @@ def floatTensorToOnehot(x, step, s=False):
     x_i[x_i <= 0] = 0
     x_i = x_i // int(step * 100)
 
-    x_onehot = torch.nn.functional.one_hot(x_i.long(), int(400 / int(step*100)))
+    x_onehot = torch.nn.functional.one_hot(x_i.long(), int(400 / int(step * 100)))
 
-    
     if s:
         if len(x_onehot.shape) == 2:
             return smoothLabel(x_onehot)

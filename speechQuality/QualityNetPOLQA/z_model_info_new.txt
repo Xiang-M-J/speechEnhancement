@@ -97,6 +97,8 @@ MOS_COL:3.3651  MOS_DISC:4.0860 MOS_LOUD:3.5704 MOS_NOISE:3.2383        MOS_REVE
 
 dpcrn_jointcnnA20240604_082936 质量模型使用 cnnA_cp_qn20240601_110231 每次训练时都计算质量损失
 MOS_COL:3.3093	MOS_DISC:4.0472	MOS_LOUD:3.5537	MOS_NOISE:3.8294	MOS_REVERB:4.0001	MOS_SIG:3.2595	MOS_OVRL:2.8109
+dpcrn_jointcnnA20240608_160714 质量模型使用 cnnA_cp_qn20240601_110231 每隔10个iteration计算一次质量损失
+MOS_COL:3.2045  MOS_DISC:3.6179 MOS_LOUD:3.4351 MOS_NOISE:3.9394        MOS_REVERB:4.0866       MOS_SIG:2.9641  MOS_OVRL:2.5468
 
 cnnA_cp_qn20240605_165512 将归一化输出的sigmoid激活函数换成hardsigmoid函数（没什么效果）  mse: 0.0107,  lcc: 0.9395, srcc: 0.9326
 cnnA_cp_qn20240607_000313 只训练了 5 个 epoch mse: 0.0127,  lcc: 0.9279, srcc: 0.9194
@@ -111,3 +113,10 @@ crn_cp_qn20240608_095242  C= 256 lstm 隐层为 64，trans 的输出为 128   ms
 crn_cp_qn20240608_150311  C=256 lstm 隐层为128，trans 的输出为 128   mse: 0.0103,  lcc: 0.9443, srcc: 0.9387
 crn_cp_qn20240608_160031  C=256 lstm 隐层为128，trans 的输出为 128   mse: 0.0103,  lcc: 0.9411, srcc: 0.9352
 
+dpcrn_seqnjcnnA20240610_110428 联合训练但是se loss 为0.1倍 MOS_SIG:3.2878	MOS_OVRL:2.8424	
+dpcrn_seqnjcnnA20240613_121727 联合训练se loss 为1倍       MOS_SIG:3.3435  MOS_OVRL:2.8926
+
+
+cnnRes_cp_qn20240613_121304 Resnet 层数为 3, 4, 6, 3  mse: 0.0097,  lcc: 0.9455, srcc: 0.9380
+cnnRes_cp_qn20240614_211515 Resnet 层数为 2, 2, 3, 4 特征维度为 64 128 128 128  mse: 0.0095,  lcc: 0.9470, srcc: 0.9387
+cnnRes_cp_qn20240614_230736 Resnet 层数为 2 2 3 3   特征维度为 64 64 64 128 mse: 0.0102,  lcc: 0.9432, srcc: 0.9358

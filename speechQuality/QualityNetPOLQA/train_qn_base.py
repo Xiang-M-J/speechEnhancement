@@ -364,9 +364,9 @@ class Trainer(TrainerBase):
 
 if __name__ == "__main__":
     # arg = Args("hasa", model_name="hasa20240522_173240")
-    arg = Args("crn", task_type="_qn", qn_input_type=1)
+    arg = Args("cnnRes", task_type="_qn", qn_input_type=1)
     arg.epochs = 35
-    arg.batch_size = 64
+    arg.batch_size = 16
     arg.save = True
     arg.lr = 5e-4
     arg.step_size = 5

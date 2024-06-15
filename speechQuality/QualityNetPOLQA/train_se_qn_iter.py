@@ -44,8 +44,8 @@ class TrainerQSE(TrainerBase):
         mag_pred, mag_true = self.cal_qn_input(x, y, y_pred, self.mask_target, self.se_input_type)
 
         mag = torch.concat([mag_pred, mag_true], 0)
-        l1 = loss_fn(model_qn, mag_true)
-        loss = loss_fn(model_qn, mag_pred)
+        # l1 = loss_fn(model_qn, mag_true)
+        loss = loss_fn(model_qn, mag)
         loss.requires_grad_(True)
         # loss_qn = -loss_fn(mag_pred)
         # loss_qn.requires_grad_(True)
@@ -382,12 +382,13 @@ if __name__ == "__main__":
     # path_qn = r"models\hasa20240522_223914\final.pt"
     # path_qn = r"models\hasa_cp20240527_001840\final.pt"
     # path_qn = r"models\crn_cp_qn20240607_231722\final.pt"
-    path_qn = r"models\cnnA_cp_qn20240601_110231\final.pt"     # 用 sigmoid 作为输出的激活函数
+    path_qn = r"models\cnnRes_cp_qn20240614_230736\final.pt"
+    # path_qn = r"models\cnnA_cp_qn20240601_110231\final.pt"     # 用 sigmoid 作为输出的激活函数
     # path_qn = r"models\cnnA_cp_qn20240605_165512\final.pt"     # 用 hardsigmoid 作为输出的激活函数
     # path_qn = r"models\hasa_cp_qn20240529_214354\final.pt"
     # arg = Args("dpcrn", task_type="_qse", model_name="dpcrn_se20240518_224558", model2_type="cnn")
     # arg = Args("lstm", task_type="_qse", model2_type="hasa")
-    arg = Args("dpcrn", "_qse", "cnnA", qn_input_type=1, normalize_output=True)
+    arg = Args("dpcrn", "_qse", "Res", qn_input_type=1, normalize_output=True)
     arg.epochs = 15
     arg.batch_size = 4
     arg.save = False

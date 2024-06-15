@@ -8,65 +8,89 @@ import torch.nn as nn
 from torch.utils.data import dataloader
 from tqdm import tqdm
 
-from losses import CriticLoss, QNLoss
+from losses import QNLoss
 from trainer_base import TrainerBase
-from trainer_utils import Args, EarlyStopping, LoaderIterator, Metric, plot_metric, log_model, plot_quantity, \
-    load_pretrained_model, load_dataset_se, load_se_model
-from utils import cal_QN_input, cal_QN_input_compress, spec2wav, CalSigmos, seed_everything, GRL
+from trainer_utils import Args, EarlyStopping, Metric, load_qn_model, plot_metric, plot_quantity, \
+    load_pretrained_model, load_dataset_se, load_se_model, load_dataset_qnse
+from utils import spec2wav, CalSigmos, seed_everything, cal_QN_input, apply_SE_Loss, cal_QN_input_compress, normalize
 
 device = torch.device('cuda') if torch.cuda.is_available() else torch.device('cpu')
 
 
-class TrainerGRL(TrainerBase):
+class TrainerSEQNJ(TrainerBase):
     """
     训练语音增强模型
     """
 
     def __init__(self, args: Args):
-        super(TrainerGRL, self).__init__(args)
+
+        super().__init__(args)
         if args.qn_input_type == 1:
             self.cal_qn_input = cal_QN_input_compress
         else:
             self.cal_qn_input = cal_QN_input
 
     def get_loss_fn(self):
-        loss1 = CriticLoss(self.normalize_output, ("Class" in self.args.model2_type), self.args.score_step).to(device)
-        loss2 = nn.MSELoss(reduction='mean').to(device)
-        return loss1, loss2
+        loss_fn = nn.MSELoss().to(device)
+        loss_fn2 = nn.MSELoss(reduction='mean').to(device)
+        return loss_fn, loss_fn2
 
-    def train_epoch(self, model, model_qn, x, y, loss_fn, loss_fn2, optimizer):
+    def train_epoch(self, model, model_qn, x, y, s, st, loss_fn, loss_fn2, optimizer, batch_idx):
+        # 损失加起来反向传播 or 损失分别反向传播
         x = x.to(device)
         y = y.to(device)
+        s = s.to(device)
         y_pred = model(x)
-        
-        mag_pred, mag_true = self.cal_qn_input(x, y, y_pred, self.mask_target, self.se_input_type)
-        mag_pred = GRL.apply(mag_pred, 2)
-        loss = loss_fn(model_qn, mag_pred)
-        # 对于 model_qn 需要减小损失，等价于使mean(score)减小，即让model_qn的评分标准更加严格
-        # 而对于 model_se 需要减小的损失为 -c
 
+        if self.args.normalize_output:
+            s = normalize(s)
+        if "cnn" in self.args.model_type or "hubert" in self.args.model_type or "crn" in self.args.model_type:
+            norm_x = torch.norm(x, dim=1)
+            avgS = model_qn(norm_x)
+            if self.args.normalize_output:
+                avgS = avgS.sigmoid()
+            l1 = loss_fn(avgS.squeeze(-1), s)
+        else:
+            raise NotImplementedError()
+        l2 = apply_SE_Loss(x, y, y_pred, loss_fn2, self.mask_target, self.se_input_type)
+        loss = l1 + l2
         loss.requires_grad_(True)
-        # 优化鉴别器
+        # if (batch_idx + 1) % 10 == 0:
+        #     mag_pred, mag_true = cal_QN_input(x, y, y_pred, self.mask_target, self.se_input_type)
+        #     l1 = loss_fn(model_qn, mag_pred)
+        #     l2 = apply_SE_Loss(x, y, y_pred, loss_fn2, self.mask_target, self.se_input_type)
+        #     loss = l1 + l2
+        #     loss.requires_grad_(True)
+        # else:
+        #     loss = apply_SE_Loss(x, y, y_pred, loss_fn2, self.mask_target, self.se_input_type)
         optimizer.zero_grad()
         loss.backward()
         optimizer.step()
+        return l1.item(), l2.item()
 
-        # for p in model_qn.parameters():
-        #     p.data.clamp_(-1, 1)
-
-        return loss.item()
-
-    def predict(self, model, model_qn, x, y, loss_fn, loss_fn2):
+    def predict(self, model, model_qn, x, y, s, loss_fn, loss_fn2):
         """
         Return loss, y_pred
         """
         x = x.to(device)
         y = y.to(device)
+        s = s.to(device)
         y_pred = model(x)
-        mag_pred, mag_true = self.cal_qn_input(x, y, y_pred, self.mask_target, self.se_input_type)
-        loss = loss_fn(model_qn, mag_pred)
 
-        return loss.item(), y_pred.cpu().detach()
+        if self.args.normalize_output:
+            s = normalize(s)
+        if "cnn" in self.args.model_type or "hubert" in self.args.model_type or "crn" in self.args.model_type:
+            norm_x = torch.norm(x, dim=1)
+            avgS = model_qn(norm_x)
+            if self.args.normalize_output:
+                avgS = avgS.sigmoid()
+            l1 = loss_fn(avgS.squeeze(-1), s)
+        else:
+            raise NotImplementedError()
+
+        l2 = apply_SE_Loss(x, y, y_pred, loss_fn2, self.mask_target, self.se_input_type)
+        # loss = l1 + l2
+        return l1.item(), l2.item(), y_pred.cpu().detach()
 
     def freeze_parameters(self, model: nn.Module, names=None):
         if names is None:
@@ -106,15 +130,14 @@ class TrainerGRL(TrainerBase):
         # loss_fn = self.get_loss_fn()
         model_se = model_se.to(device)
         model_qn = model_qn.to(device)
-        # self.freeze_parameters(model=model_qn, names=None)
-        # loss_fn = QNLoss(isClass=("Class" in self.args.model2_type), step=self.args.score_step).to(device)
+
         loss_fn, loss_fn2 = self.get_loss_fn()
 
-        optimizer = torch.optim.RMSprop(
-            [{"params": model_se.parameters(), "lr": self.lr}, {"params": model_qn.parameters(), "lr": 0.1 * self.lr}],
-            lr=self.args.lr)
+        optimizer = self.get_optimizer(
+           [{"params": model_se.parameters(), "lr": self.lr}, {"params": model_qn.parameters(), "lr": self.lr}], lr=self.lr)
 
-        scheduler = self.get_scheduler(optimizer, arg=self.args)
+        scheduler = self.get_scheduler(optimizer, self.args)
+
         # 保存一些信息
         if self.args.save:
             self.writer.add_text("模型名", self.args.model_name)
@@ -124,11 +147,10 @@ class TrainerGRL(TrainerBase):
                     dummy_input = torch.rand(self.args.batch_size, 2, 128, self.args.fft_size // 2 + 1).to(device)
                 else:
                     dummy_input = torch.rand(self.args.batch_size, 128, self.args.fft_size // 2 + 1).to(device)
-                if "lstmA" in self.args.model_type:
+                if self.args.model_type == "lstmA":
                     pass
                 else:
                     self.writer.add_graph(model_se, dummy_input)
-
             except RuntimeError as e:
                 print(e)
 
@@ -136,131 +158,114 @@ class TrainerGRL(TrainerBase):
         start_time = time.time()
         calSigmos = CalSigmos()
 
-        train_iter = LoaderIterator(train_loader)
-
-        metric.sig = []
-        metric.ovrl = []
-
-        train_loss = 0
-        valid_loss = 0
-
         # 训练开始
         try:
-            model_se.train()
-            model_qn.train()
-            q_len = 100
-            max_step = self.iteration // self.iter_step
-            step = 0
-            for iter_idx in tqdm(range(self.iteration)):
+            for epoch in tqdm(range(self.epochs), ncols=100):
+                train_loss = 0
+                valid_loss = 0
+                model_se.train()
+                model_qn.train()
+                loop_train = tqdm(enumerate(train_loader), leave=False)
+                for batch_idx, (x, _, y, _, s, st) in loop_train:
+                    l1, l2 = self.train_epoch(model_se, model_qn, x, y, s, st, loss_fn, loss_fn2, optimizer, batch_idx)
+                    train_loss += l1
+                    train_loss += l2
 
-                x, _, y, _ = train_iter()
-                loss = self.train_epoch(model_se, model_qn, x, y, loss_fn, loss_fn2, optimizer)
-                train_loss += loss
-                # print(f"[{iter_idx}\{self.iteration}]", end="\r", flush=True)
+                    loop_train.set_description_str(f'Training [{epoch + 1}/{self.epochs}]')
+                    loop_train.set_postfix_str("step: {}/{} loss: {:.4f}".format(batch_idx, train_step, l1))
+                    loop_train.set_postfix_str("step: {}/{} loss: {:.4f}".format(batch_idx, train_step, l2))
+                    # break
+                model_se.eval()
+                model_qn.eval()
+                q_len = 50
+                idx = 0
+                mos_48k = {"col": [], "disc": [], "loud": [], "noise": [], "reverb": [], "sig": [], "ovrl": []}
+                mos_48k_name = list(mos_48k.keys())
 
-                if (iter_idx + 1) % self.iter_step == 0:
-                    model_se.eval()
-                    model_qn.eval()
+                with torch.no_grad():
+                    loop_valid = tqdm(enumerate(valid_loader), leave=False)
+                    for batch_idx, (x, xp, y, yp, s, _) in loop_valid:
+                        l1, l2, est_x = self.predict(model_se, model_qn, x, y, s, loss_fn, loss_fn2)
+                        valid_loss += l1
+                        valid_loss += l2
+                        batch = x.shape[0]
+                        if idx < q_len:
+                            est_wav = spec2wav(x, xp, est_x, self.fft_size, self.hop_size, self.fft_size,
+                                               input_type=self.se_input_type, mask_target=self.mask_target)
+                            results = calSigmos(est_wav.cpu().detach().numpy())
+                            for i in range(7):
+                                mos_48k[mos_48k_name[i]].extend(results[i])
+                        idx += batch
+                        loop_valid.set_description_str(f'Validating [{epoch + 1}/{self.epochs}]')
+                        loop_valid.set_postfix_str("step: {}/{} loss: {:.4f}".format(batch_idx, valid_step, l1))
+                        loop_valid.set_postfix_str("step: {}/{} loss: {:.4f}".format(batch_idx, valid_step, l2))
 
-                    idx = 0
-                    mos_48k = {"col": [], "disc": [], "loud": [], "noise": [], "reverb": [], "sig": [], "ovrl": []}
-                    mos_48k_name = list(mos_48k.keys())
 
-                    with torch.no_grad():
-                        for batch_idx, (x, xp, y, yp) in enumerate(valid_loader):
-                            loss, est_x = self.predict(model_se, model_qn, x, y, loss_fn, loss_fn2)
-                            valid_loss += loss
-                            batch = x.shape[0]
-                            if idx < q_len:
-                                est_wav = spec2wav(x, xp, est_x, self.fft_size, self.hop_size, self.fft_size,
-                                                   input_type=self.se_input_type, mask_target=self.mask_target)
-                                results = calSigmos(est_wav.cpu().detach().numpy())
-                                for i in range(7):
-                                    mos_48k[mos_48k_name[i]].extend(results[i])
-                            else:
-                                break
-                            idx += batch
+                print("")
+                for k, v in mos_48k.items():
+                    print(f"{k}: {np.mean(v)}", end="\t")
+                print("")
 
-                    # 保存每个step的训练信息
-                    metric.train_loss.append(train_loss / self.iter_step)
-                    metric.valid_loss.append(valid_loss / q_len)
-                    print("")
-                    print('Step {}:  train Loss:{:.4f}\t val Loss:{:.4f}'.format(
-                        step + 1, metric.train_loss[-1], metric.valid_loss[-1]))
+                if self.args.scheduler_type != 0:
+                    scheduler.step()
 
-                    msg = ""
-                    for k, v in mos_48k.items():
-                        msg += f"{k}: {np.mean(v)}\t"
-                        if k == "sig":
-                            metric.sig.append(np.mean(v))
-                        if k == "ovrl":
-                            metric.ovrl.append(np.mean(v))
-                    print(msg)
-                    # self.logging.info(msg)
+                # 保存每个epoch的训练信息
+                metric.train_loss.append(train_loss / train_step)
+                metric.valid_loss.append(valid_loss / valid_step)
 
-                    if self.args.scheduler_type != 0:
-                        scheduler.step()
+                # 实时显示损失变化
+                plt.clf()
+                plt.plot(metric.train_loss)
+                plt.plot(metric.valid_loss)
+                plt.ylabel("loss")
+                plt.xlabel("epoch")
+                plt.legend(["train loss", "valid loss"])
+                plt.title(f"{self.args.model_type} loss")
+                plt.pause(0.02)
+                plt.ioff()  # 关闭画图的窗口
 
-                    train_loss = 0
-                    valid_loss = 0
+                if self.args.save:
+                    if (epoch + 1) % self.save_model_epoch == 0:
+                        tqdm.write(f"save model to {self.model_path}" + f"{epoch}.pt")
+                        torch.save(model_se, self.model_path + f"{epoch}.pt")
+                    self.writer.add_scalar('train loss', metric.train_loss[-1], epoch + 1)
+                    self.writer.add_scalar('valid loss', metric.valid_loss[-1], epoch + 1)
+                    self.writer.add_scalar('lr', optimizer.param_groups[0]['lr'], epoch + 1)
+                    np.save(os.path.join(self.data_path, "train_metric.npy"), metric.items())
+                tqdm.write(
+                    'Epoch {}:  train Loss:{:.4f}\t val Loss:{:.4f}'.format(
+                        epoch + 1, metric.train_loss[-1], metric.valid_loss[-1]))
 
-                    model_se.train()
-                    model_qn.train()
-
+                if metric.valid_loss[-1] < best_valid_loss:
+                    tqdm.write(f"valid loss decrease from {best_valid_loss :.3f} to {metric.valid_loss[-1]:.3f}")
+                    best_valid_loss = metric.valid_loss[-1]
+                    metric.best_valid_loss = best_valid_loss
                     if self.args.save:
-                        if (step + 1) % self.save_model_step == 0:
-                            print(f"save model to {self.model_path}" + f"{step}.pt")
-                            torch.save(model_se, self.model_path + f"{step}.pt")
-                        self.writer.add_scalar('train loss', metric.train_loss[-1], step + 1)
-                        self.writer.add_scalar('valid loss', metric.valid_loss[-1], step + 1)
-                        self.writer.add_scalar("sig", metric.sig[-1], step + 1)
-                        self.writer.add_scalar("ovrl", metric.ovrl[-1], step + 1)
-                        self.writer.add_scalar('lr', optimizer.param_groups[0]['lr'], step + 1)
-                        np.save(os.path.join(self.data_path, "train_metric.npy"), metric.items())
+                        torch.save(model_se, self.best_model_path)
+                        tqdm.write(f"saving model to {self.best_model_path}")
+                else:
+                    tqdm.write(f"validation loss did not decrease from {best_valid_loss}")
 
-                    # 实时显示损失变化
-                    plt.clf()
-                    plt.plot(metric.train_loss)
-                    plt.plot(metric.valid_loss)
-                    plt.ylabel("loss")
-                    plt.xlabel("mini-epoch")
-                    plt.legend(["train loss", "valid loss"])
-                    plt.title(f"{self.args.model_type} loss")
-                    plt.pause(0.02)
-                    plt.ioff()  # 关闭画图的窗口
-
-                    step += 1
-
-                    if metric.valid_loss[-1] < best_valid_loss:
-                        print(f"valid loss decrease from {best_valid_loss :.3f} to {metric.valid_loss[-1]:.3f}")
-                        best_valid_loss = metric.valid_loss[-1]
-                        metric.best_valid_loss = best_valid_loss
-                        if self.args.save:
-                            torch.save(model_se, self.best_model_path)
-                            print(f"saving model to {self.best_model_path}")
-                    else:
-                        print(f"validation loss did not decrease from {best_valid_loss}")
-
-                    if early_stop(metric.valid_loss[-1]):
-                        if self.args.save:
-                            torch.save(model_se, self.final_model_path)
-                            print(f"early stop..., saving model to {self.final_model_path}")
-                        # break
-
+                if early_stop(metric.valid_loss[-1]):
+                    if self.args.save:
+                        torch.save(model_se, self.final_model_path)
+                        tqdm.write(f"early stop..., saving model to {self.final_model_path}")
+                    break
             # 训练结束时需要进行的工作
             end_time = time.time()
             tqdm.write('Train ran for %.2f minutes' % ((end_time - start_time) / 60.))
+
             self.logging.info(self.args.model_name + "\t{:.2f}".format((end_time - start_time) / 60.))
             self.logging.info("train loss: {:.4f}, valid loss: {:.4f}"
                               .format(metric.train_loss[-1], metric.valid_loss[-1]))
+
             if self.args.save:
                 plt.clf()
                 torch.save(model_se, self.final_model_path)
                 tqdm.write(f"save model(final): {self.final_model_path}")
                 np.save(os.path.join(self.data_path, "train_metric.npy"), metric.items())
                 fig = plot_metric({"train_loss": metric.train_loss, "valid_loss": metric.valid_loss},
-                                  title="train and valid loss", xlabel="mini-epoch", ylabel="",
-                                  result_path=self.image_path)
+                                  title="train and valid loss", result_path=self.image_path)
                 self.writer.add_figure("learn loss", fig)
                 self.writer.add_text("beat valid loss", f"{metric.best_valid_loss}")
                 self.writer.add_text("duration", "{:2f}".format((end_time - start_time) / 60.))
@@ -279,8 +284,7 @@ class TrainerGRL(TrainerBase):
                 tqdm.write(f"save model(final): {self.final_model_path}")
                 np.save(os.path.join(self.data_path, "train_metric.npy"), metric.items())
                 fig = plot_metric({"train_loss": metric.train_loss, "valid_loss": metric.valid_loss},
-                                  title="train and valid loss", xlabel="mini-epoch", ylabel="",
-                                  result_path=self.image_path)
+                                  title="train and valid loss", result_path=self.image_path)
                 self.writer.add_figure("learn loss", fig)
                 self.writer.add_text("beat valid loss", f"{metric.best_valid_loss}")
                 self.writer.add_text("duration", "{:2f}".format((end_time - start_time) / 60.))
@@ -312,9 +316,10 @@ class TrainerGRL(TrainerBase):
 
         idx = 0
         with torch.no_grad():
-            for batch_idx, (x, xp, y, yp) in tqdm(enumerate(test_loader)):
-                loss, est_x = self.predict(model, model_qn, x, y, loss_fn, loss_fn2)
-                test_loss += loss
+            for batch_idx, (x, xp, y, yp, s, _) in tqdm(enumerate(test_loader)):
+                l1, l2, est_x = self.predict(model, model_qn, x, y, s, loss_fn, loss_fn2)
+                test_loss += l1
+                test_loss += l2
                 batch = x.shape[0]
                 if idx < q_len:
                     est_wav = spec2wav(x, xp, est_x, self.fft_size, self.hop_size, self.fft_size,
@@ -323,8 +328,6 @@ class TrainerGRL(TrainerBase):
                     results = calSigmos(est_wav.cpu().detach().numpy())
                     for i in range(7):
                         metric.mos_48k[metric.mos_48k_name[i]].extend(results[i])
-                else:
-                    break
                 idx += batch
 
         metric.test_loss = test_loss / test_step
@@ -338,10 +341,11 @@ class TrainerGRL(TrainerBase):
         print(mean_mos_str)
         self.logging.info(mean_mos_str)
 
-        self.logging.info("test loss: {:.4f} \n".format(metric.test_loss))
+        self.logging.info("test loss: {:.4f}".format(metric.test_loss))
 
         if self.args.save:
             self.writer.add_text("test metric", str(metric))
+
             for i in range(7):
                 name = metric.mos_48k_name[i]
                 fig = plot_quantity(metric.mos_48k[name], f"测试语音的{name}", ylabel=name, result_path=self.image_path)
@@ -381,54 +385,46 @@ class TrainerGRL(TrainerBase):
 
 
 if __name__ == "__main__":
-    # path_se = r"models\lstm_se20240521_173158\final.pt"
-    path_se = r"models\dpcrn_se20240518_224558\final.pt"
-    # path_qn = r"models\hasa20240523_102833\final.pt"
-    # path_qn = r"models\cnnRes_cp_qn20240614_211515\final.pt"
-    path_qn = r"models\cnnA_cp_qn20240601_110231\final.pt"
-    # path_qn = r"models\crn_cp_qn20240607_231722\final.pt"
-    # path_qn = r"models\cnnA_cp_qn20240607_000313\final.pt"
-    # path_qn = r"models\hasa_cp_qn20240529_214354\final.pt"
+    arg = Args("dpcrn", task_type="_seqnj", model2_type="cnnA", qn_input_type=1, normalize_output=True)
 
-    # arg = Args("dpcrn_qse", model_name="dpcrn_se20240518_224558", model2_type="cnn")
-    # arg = Args("lstm", task_type="_wgan", model2_type="hasa")
-    arg = Args("dpcrn", "_grl", "cnnA", qn_input_type=1, normalize_output=True)
-    arg.epochs = 15
+    arg.epochs = 30
     arg.batch_size = 4
     arg.save = True
-    arg.lr = 5e-5
-
+    arg.lr = 5e-4
+    arg.step_size = 5
     arg.delta_loss = 2e-4
-
-    # arg.se_input_type = 1
-
-    arg.iteration = 72000 // arg.batch_size
-    arg.iter_step = 100
-    arg.step_size = 10
 
     if arg.model2_type is None:
         raise ValueError("model qn type cannot be none")
+    
+    arg.optimizer_type = 1
+    # arg.se_input_type = 1
 
     # 训练 CNN / tcn
     # arg.optimizer_type = 1
     # arg.enableFrame = False
 
+    # 训练分类模型
+    # arg.score_step = 0.2
+    # arg.focal_gamma = 2
+    # arg.smooth = True
+
     print(arg)
 
     seed_everything(arg.random_seed)
 
-    trainer = TrainerGRL(arg)
+    trainer = TrainerSEQNJ(arg)
 
     if arg.save and not arg.expire:
         arg.write(arg.model_name)
 
     # 加载用于训练语音增强模型的数据集 x: (B, L, C)  y: (B L C)
-    train_dataset, valid_dataset, test_dataset = load_dataset_se("wav_train_se.list", arg.spilt_rate,
-                                                                 arg.fft_size, arg.hop_size, arg.se_input_type)
+    train_dataset, valid_dataset, test_dataset = load_dataset_qnse("wav_train_qn_se.list", arg.spilt_rate,
+                                                                   arg.fft_size, arg.hop_size, arg.se_input_type)
 
-    model_se = load_pretrained_model(path_se)
-    # model_se = load_se_model(arg)
-    model_qn = load_pretrained_model(path_qn)
+    # model_se = load_pretrained_model(path_se)
+    model_se = load_se_model(arg)
+    model_qn = load_qn_model(arg, type2=True)
 
     model_se = trainer.train(model_se, model_qn, train_dataset=train_dataset, valid_dataset=valid_dataset)
     trainer.test(test_dataset=test_dataset, model=model_se, model_qn=model_qn, q_len=200)

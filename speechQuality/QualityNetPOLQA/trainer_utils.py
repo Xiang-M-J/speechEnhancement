@@ -8,6 +8,7 @@ import torchinfo
 
 from models import (HASANetStack, Cnn, LstmClassifier, CnnClass, Cnn2d, HASANet, CAN2dClass, LstmCANClass,
                     CnnMAttn, HASAClassifier, CRN)
+from resnet import ResNet
 from lstm import lstm_net
 from DPCRN import dpcrn
 from hubert import Hubert
@@ -15,7 +16,7 @@ import numpy as np
 import yaml
 from matplotlib import pyplot as plt
 
-from utils import ListRead, DNSPOLQADataset, DNSDataset, floatTensorToClass, floatNumpyToClass
+from utils import ListRead, POLQADataset, DNSDataset, floatTensorToClass, floatNumpyToClass, DNSPOLQADataset
 
 plt.rcParams['font.sans-serif'] = ['Simhei']  # 显示中文
 plt.rcParams['axes.unicode_minus'] = False  # 显示负号
@@ -37,9 +38,28 @@ def load_dataset_qn(path, spilt_rate, fft_size=512, hop_size=256, return_wav=Fal
 
     Test_list = wav_list[train_length + valid_length:]
 
-    train_dataset = DNSPOLQADataset(Train_list, fft_size, hop_size, return_wav=return_wav, input_type=input_type)
-    valid_dataset = DNSPOLQADataset(Valid_list, fft_size, hop_size, return_wav=return_wav, input_type=input_type)
-    test_dataset = DNSPOLQADataset(Test_list, fft_size, hop_size, return_wav=return_wav, input_type=input_type)
+    train_dataset = POLQADataset(Train_list, fft_size, hop_size, return_wav=return_wav, input_type=input_type)
+    valid_dataset = POLQADataset(Valid_list, fft_size, hop_size, return_wav=return_wav, input_type=input_type)
+    test_dataset = POLQADataset(Test_list, fft_size, hop_size, return_wav=return_wav, input_type=input_type)
+    return train_dataset, valid_dataset, test_dataset
+
+
+def load_dataset_qnse(path, spilt_rate, fft_size=512, hop_size=256, input_type=1):
+    wav_list = ListRead(path)
+    random.shuffle(wav_list)
+
+    train_length = int(len(wav_list) * spilt_rate[0])
+    valid_length = int(len(wav_list) * spilt_rate[1])
+
+    Train_list = wav_list[:train_length]
+
+    Valid_list = wav_list[train_length:train_length + valid_length]
+
+    Test_list = wav_list[train_length + valid_length:]
+
+    train_dataset = DNSPOLQADataset(Train_list, fft_size, hop_size, fft_size, input_type)
+    valid_dataset = DNSPOLQADataset(Valid_list, fft_size, hop_size, fft_size, input_type)
+    test_dataset = DNSPOLQADataset(Test_list, fft_size, hop_size, fft_size, input_type)
     return train_dataset, valid_dataset, test_dataset
 
 
@@ -426,8 +446,11 @@ def get_model_type(full_model_type):
         return full_model_type
 
 
-def load_qn_model(args: Args):
-    model_type = get_model_type(args.model_type)
+def load_qn_model(args: Args, type2=False):
+    if type2:
+        model_type = get_model_type(args.model2_type)
+    else:
+        model_type = get_model_type(args.model_type)
     if model_type == "cnn":
         model = Cnn(args.cnn_filter, args.cnn_feature, args.dropout)
     elif model_type == "hasa":
@@ -452,6 +475,8 @@ def load_qn_model(args: Args):
         model = Hubert()
     elif model_type == "crn":
         model = CRN()
+    elif model_type == "cnnRes":
+        model = ResNet()
     else:
         raise ValueError("Invalid model type")
 
