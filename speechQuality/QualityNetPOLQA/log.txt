@@ -666,3 +666,35 @@ test loss: -0.5051
 2024-06-15 16:59:14,798 train_se_grl.py MOS_COL:3.1686	MOS_DISC:3.7359	MOS_LOUD:3.0826	MOS_NOISE:3.2241	MOS_REVERB:4.0683	MOS_SIG:3.3244	MOS_OVRL:2.5422	
 2024-06-15 16:59:14,799 train_se_grl.py test loss: 0.0001 
 
+2024-06-17 15:22:51,916 train_se_grl.py dpcrn_grlcnnA20240617_141409	68.70
+2024-06-17 15:22:51,917 train_se_grl.py train loss: 0.0007, valid loss: 0.0004
+2024-06-17 15:23:18,188 train_se_grl.py MOS_COL:3.0399	MOS_DISC:3.2024	MOS_LOUD:2.5931	MOS_NOISE:3.3106	MOS_REVERB:4.1238	MOS_SIG:2.8819	MOS_OVRL:2.2112	
+2024-06-17 15:23:18,189 train_se_grl.py test loss: 0.0001 
+
+2024-06-18 10:26:58,493 train_se_grl.py dpcrn_grlcnnRes20240618_101351	13.10
+2024-06-18 10:26:58,493 train_se_grl.py train loss: 0.0030, valid loss: 0.0139
+2024-06-18 11:30:13,926 train_se_grl.py dpcrn_grlcnnRes20240618_102709	63.07
+2024-06-18 11:30:13,927 train_se_grl.py train loss: 0.0160, valid loss: 0.0084
+2024-06-18 11:30:39,172 train_se_grl.py MOS_COL:3.7698	MOS_DISC:3.7592	MOS_LOUD:3.8230	MOS_NOISE:2.8678	MOS_REVERB:3.7206	MOS_SIG:3.5991	MOS_OVRL:3.1332	
+2024-06-18 11:30:39,172 train_se_grl.py test loss: 0.0014 
+
+2024-06-18 14:27:12,809 train_se_grl.py dpcrn_grlcnnRes20240618_132443	62.47
+2024-06-18 14:27:12,810 train_se_grl.py train loss: 0.1619, valid loss: 0.0222
+2024-06-18 14:27:39,041 train_se_grl.py MOS_COL:3.4455	MOS_DISC:4.2438	MOS_LOUD:1.9813	MOS_NOISE:2.8252	MOS_REVERB:3.7394	MOS_SIG:2.8720	MOS_OVRL:2.0205	
+2024-06-18 14:27:39,041 train_se_grl.py test loss: 0.0037 
+
+2024-06-18 16:12:43,068 train_se_grl.py dpcrn_grlcnnRes20240618_150325	69.29
+2024-06-18 16:12:43,068 train_se_grl.py train loss: 0.0116, valid loss: 0.0020
+2024-06-18 16:13:09,521 train_se_grl.py MOS_COL:2.9133	MOS_DISC:3.3963	MOS_LOUD:2.6784	MOS_NOISE:3.3998	MOS_REVERB:4.2084	MOS_SIG:2.8912	MOS_OVRL:2.2282	
+2024-06-18 16:13:09,521 train_se_grl.py test loss: 0.0003 
+
+2024-06-18 18:02:37,708 train_se_grl.py dpcrn_grlcnnRes20240618_165355	68.69
+2024-06-18 18:02:37,709 train_se_grl.py train loss: 0.0361, valid loss: 0.0063
+2024-06-18 18:03:04,143 train_se_grl.py MOS_COL:3.0339	MOS_DISC:3.8471	MOS_LOUD:3.3182	MOS_NOISE:3.3201	MOS_REVERB:3.7659	MOS_SIG:3.0205	MOS_OVRL:2.6061	
+2024-06-18 18:03:04,143 train_se_grl.py test loss: 0.0009 
+
+2024-06-20 13:58:06,923 train_se_grl.py dpcrn_grlcnnRes20240620_125156	66.17
+2024-06-20 13:58:06,924 train_se_grl.py train loss: 0.0160, valid loss: 0.0084
+2024-06-20 13:58:32,716 train_se_grl.py MOS_COL:3.7698	MOS_DISC:3.7592	MOS_LOUD:3.8230	MOS_NOISE:2.8678	MOS_REVERB:3.7206	MOS_SIG:3.5991	MOS_OVRL:3.1332	
+2024-06-20 13:58:32,716 train_se_grl.py test loss: 0.0014 
+

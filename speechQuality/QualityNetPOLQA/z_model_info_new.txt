@@ -120,3 +120,5 @@ dpcrn_seqnjcnnA20240613_121727 联合训练se loss 为1倍       MOS_SIG:3.3435 
 cnnRes_cp_qn20240613_121304 Resnet 层数为 3, 4, 6, 3  mse: 0.0097,  lcc: 0.9455, srcc: 0.9380
 cnnRes_cp_qn20240614_211515 Resnet 层数为 2, 2, 3, 4 特征维度为 64 128 128 128  mse: 0.0095,  lcc: 0.9470, srcc: 0.9387
 cnnRes_cp_qn20240614_230736 Resnet 层数为 2 2 3 3   特征维度为 64 64 64 128 mse: 0.0102,  lcc: 0.9432, srcc: 0.9358
+
+dpcrn_grlres20240615_122609  在计算 critic loss 时，使用的是 torch.hardsigmoid 函数进行归一化，而在训练时，使用的是 torch.sigmoid 函数进行归一化
